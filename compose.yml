@@ -1,0 +1,127 @@
+name: stream-dashboard
+networks:
+  frontend:
+  backend:
+
+volumes:
+  NSD_influxdb2-data:
+  NSD_influxdb2-config:
+  NSD_grafana_data:
+  NSD_speedtest-tracker-data:
+
+services:
+  influxdb2:
+    image: influxdb:${INFLUXDB_VERSION:-2}
+    ports:
+      - ${INFLUXDB_PORT:-8086}:8086
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUXDB_USER:-admin}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUXDB_PASSWORD:-changeme}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUXDB_ADMIN_TOKEN:-changeme}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUXDB_ORG:-default}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUXDB_BUCKET:-default}
+    volumes:
+      - NSD_influxdb2-data:/var/lib/influxdb2
+      - NSD_influxdb2-config:/etc/influxdb2
+    networks:
+      backend:
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "influx ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION:-13.0}
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-changeme}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://${GRAFANA_HOST:-localhost}:${GRAFANA_PORT:-3000}
+      - INFLUXDB_ADMIN_TOKEN=${INFLUXDB_ADMIN_TOKEN:-changeme}
+    volumes:
+      - NSD_grafana_data:/var/lib/grafana
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - influxdb2
+      - telegraf
+    networks:
+      backend:
+      frontend:
+
+  telegraf:
+    image: telegraf
+    container_name: av_telegraf
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - backend
+    env_file:
+      - .env
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf
+      - /etc:/hostfs/etc
+      - /proc:/hostfs/proc
+      - /sys:/hostfs/sys
+      - /var:/hostfs/var
+      - /run:/hostfs/run
+    environment:
+      - HOST_ETC=/hostfs/etc
+      - HOST_PROC=/hostfs/proc
+      - HOST_SYS=/hostfs/sys
+      - HOST_VAR=/hostfs/var
+      - HOST_RUN=/hostfs/run
+      - HOST_MOUNT_PREFIX=/hostfs
+    build:
+      context: ./telegraf
+      dockerfile: Dockerfile
+
+  speedtest-tracker:
+    image: lscr.io/linuxserver/speedtest-tracker:latest
+    container_name: speedtest-tracker
+    environment:
+      - PUID=${PUID:-1000}
+      - PGID=${PGID:-1000}
+      - TZ=${TZ:-Etc/UTC}
+      - APP_KEY=${SPEEDTEST_TRACKER_APP_KEY:-changeme}
+      - APP_URL=http://${SPEEDTEST_TRACKER_HOST:-localhost}:${SPEEDTEST_TRACKER_PORT:-8087}
+      - DB_CONNECTION=sqlite
+      - DB_DATABASE=/config/database.sqlite
+      - SPEEDTEST_SCHEDULE=*/10 * * * *
+      - SPEEDTEST_SERVERS=70522
+      - DISPLAY_TIMEZONE=${TZ:-Etc/UTC}
+      - PRUNE_RESULTS_OLDER_THAN=5
+      - APP_DEBUG=true
+      - ALLOWED_IPS=${ALLOWED_IPS:-}
+    volumes:
+      - NSD_speedtest-tracker-data:/config
+    ports:
+      - ${SPEEDTEST_TRACKER_PORT:-8087}:80
+    restart: unless-stopped
+    networks:
+      - backend
+      - frontend
+
+# FFMPEG DISABLED FOR NOW
+# ffmpeg:
+#   image: jrottenberg/ffmpeg:8.1-ubuntu
+#   container_name: ffmpeg
+#   restart: unless-stopped
+#   networks:
+#     - backend
+#     - frontend
+#   volumes:
+#     - ./scripts:/bin/scripts
+#     - ./.env:/bin/.env
+#   env_file:
+#     - .env
+#   build:
+#     context: ./ffmpeg
+#     dockerfile: Dockerfile

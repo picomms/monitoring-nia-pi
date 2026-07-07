@@ -1,0 +1,58 @@
+site_name: NIA Stream Dashboard
+site_description: Documentation for the NIA Stream Dashboard monitoring platform
+site_url: https://picommcapp.github.io/NIA-stream-dashboard/
+repo_url: https://github.com/PiCommCapp/NIA-stream-dashboard
+repo_name: PiCommCapp/NIA-stream-dashboard
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - content.action.edit
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - User Guide:
+      - Getting Started: user/getting-started.md
+      - Configuration: user/configuration.md
+      - Dashboards: user/dashboards.md
+      - Operations: user/operations.md
+  - Developer Guide:
+      - Architecture: developer/architecture.md
+      - Telegraf: developer/telegraf.md
+      - Grafana: developer/grafana.md
+      - InfluxDB: developer/influxdb.md
+      - Scripts: developer/scripts.md
+      - FFmpeg / Vimeo: developer/ffmpeg-vimeo.md
+      - Variable Review: developer/variable-review.md
+  - Roadmap: roadmap.md
+  - Contributing: contributing.md
