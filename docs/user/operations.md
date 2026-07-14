@@ -1,57 +1,72 @@
 # Operations
 
-Day-to-day tasks for running the stack. All commands are `make` targets; run `make help` at any time for the full list.
+Day-to-day tasks. Prefer `just` recipes (`just --list` for the full set).
 
 ## Starting and stopping
 
 ```bash
-make up               # start all services in the background
-make up ARGS="--build" # rebuild images before starting
-make down             # stop and remove containers (data volumes persist)
-make restart          # restart all services
-make restart SERVICE=grafana  # restart a single service
+just up          # Prometheus, Grafana, node_exporter
+just up-tunnel   # also start cloudflared (needs TUNNEL_TOKEN)
+just down        # stop containers; keep NSD_* volumes
 ```
 
 ## Logs and status
 
 ```bash
-make logs                     # follow logs for every service
-make logs SERVICE=telegraf    # follow logs for one service
-make ps                       # list running containers
-make config                   # print the fully resolved compose configuration
+just logs              # follow all services
+just logs grafana      # one service
+just ps
+just config            # resolved Compose config
 ```
 
-`make config` is useful for confirming that environment variable substitution (e.g. `${STREAM1_HOST}`) resolved the way you expect.
-
-## Shelling into a container
+## Checking metrics
 
 ```bash
-make sh SERVICE=grafana                    # open an interactive shell
-make exec SERVICE=telegraf CMD="telegraf --test"  # run a one-off command
+curl --fail http://localhost:9090/-/healthy
 ```
 
-## Updating images
+In the Prometheus UI, open **Status → Targets**. The `prometheus` and `node`
+jobs should both be **UP**. See [Prometheus](../developer/prometheus.md) for
+query checks and troubleshooting.
+
+After editing `prometheus/prometheus.yml`, apply a validated configuration:
 
 ```bash
-make pull    # pull the latest images for all services
-make build   # rebuild locally-built images (telegraf, ffmpeg)
-make rebuild # rebuild without cache and force-recreate containers
+just config
+curl --request POST http://localhost:9090/-/reload
 ```
 
-## Backing up data
+## Cloudflare profile
 
-All persistent state lives in Docker volumes prefixed `NSD_`:
+`just up` does not start `cloudflared`. Set `TUNNEL_TOKEN` in `.env` and run
+`just up-tunnel` when the remotely managed tunnel is ready. The container has no
+published host port; it reaches Grafana over the Compose `frontend` network.
+Hostname and Access policy setup is the next milestone.
 
-- `NSD_influxdb2-data`, `NSD_influxdb2-config` — metrics and InfluxDB configuration
-- `NSD_grafana_data` — Grafana dashboards, users, and settings (though dashboards themselves are provisioned from `grafana/dashboards/` and can be recreated)
-- `NSD_speedtest-tracker-data` — Speedtest Tracker's SQLite database
-
-Back these up with `docker run --rm -v NSD_influxdb2-data:/data -v $(pwd):/backup alpine tar czf /backup/influxdb2-data.tar.gz -C /data .` (repeat per volume), or use your preferred Docker volume backup tool.
-
-## Removing everything
+## Docs
 
 ```bash
-make clean
+just sync         # install Python deps via uv
+just docs-serve   # http://localhost:8000
+just docs-build   # mkdocs build --strict
 ```
 
-This stops the stack, removes every `NSD_*` volume, and prunes unused Docker resources (`docker system prune -f`). This is destructive and cannot be undone — use it when you want a completely fresh start, such as after changing `INFLUXDB_ORG`/`INFLUXDB_BUCKET`.
+## Volumes
+
+Persistent state uses the `NSD_` prefix:
+
+| Volume | Contents |
+| --- | --- |
+| `NSD_prometheus_data` | Prometheus TSDB |
+| `NSD_grafana_data` | Grafana users / sessions (dashboards are provisioned from git) |
+
+There is no `just clean`. To discard data deliberately:
+
+```bash
+just down
+docker volume rm monitoring-nia_NSD_prometheus_data monitoring-nia_NSD_grafana_data
+```
+
+Orphaned volumes from the old Influx/Telegraf stack (`NSD_influxdb2-*`,
+`NSD_speedtest-tracker-data`) can be removed the same way once you no longer need
+them.

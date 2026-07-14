@@ -1,5 +1,5 @@
-site_name: NIA Stream Dashboard
-site_description: Documentation for the NIA Stream Dashboard monitoring platform
+site_name: NIA Monitoring
+site_description: Documentation for the NIA Monitoring server stack (Prometheus + Grafana)
 site_url: https://picommcapp.github.io/NIA-stream-dashboard/
 repo_url: https://github.com/PiCommCapp/NIA-stream-dashboard
 repo_name: PiCommCapp/NIA-stream-dashboard
@@ -48,11 +48,10 @@ nav:
       - Operations: user/operations.md
   - Developer Guide:
       - Architecture: developer/architecture.md
-      - Telegraf: developer/telegraf.md
+      - Decisions: developer/decisions.md
+      - Prometheus: developer/prometheus.md
       - Grafana: developer/grafana.md
-      - InfluxDB: developer/influxdb.md
       - Scripts: developer/scripts.md
       - FFmpeg / Vimeo: developer/ffmpeg-vimeo.md
-      - Variable Review: developer/variable-review.md
   - Roadmap: roadmap.md
   - Contributing: contributing.md

@@ -1,56 +1,127 @@
 # FFmpeg / Vimeo
 
-The next feature being built on top of the MVP monitoring stack: an FFmpeg-based container that probes the actual Vimeo HLS output of each encoder, rather than just the encoder's own self-reported status (which is all the Web Presenter API in [Telegraf](telegraf.md) currently gives us).
+Second-generation work (G2): a long-lived Prometheus exporter that probes Vimeo HLS
+output with `ffprobe`. **Not part of M1** — the Cherry stack today is Prometheus +
+Grafana + `node_exporter` only. Keep this page as the source of truth for Vimeo
+authentication and the API call patterns that already work, so G2 does not have to
+rediscover them.
 
-## Why a separate service
+Architecture lock-in for G2 lives in `refactor.md` at the repo root (Prometheus
+client, background probe interval, string fields as labels). Sequencing is in
+`refactor-plan.md`. See also the [Roadmap](../roadmap.md).
 
-Telegraf handles everything else in this stack, but it can't do this job on its own:
+## Why a separate exporter
 
-- It has no `ffprobe`/`ffmpeg` binary, and adding one would bloat every Telegraf deployment for a feature only this stack needs.
-- Probing an HLS stream (fetching the Vimeo API, then running `ffprobe` against the resulting URL) takes meaningfully longer than the 10-second interval used for every other input, and shouldn't block the rest of Telegraf's collection loop.
-- The logic is naturally a small Python script (API call + subprocess + health evaluation) rather than a declarative Telegraf plugin config.
+- Probing an HLS stream (Vimeo API → `ffprobe`) takes seconds and must not run
+  synchronously on a Prometheus scrape.
+- The logic is a small Python loop, not a Telegraf plugin.
+- Endpoint Pis will eventually run this image from the slice template; the server
+  stack only scrapes `/metrics`.
 
-So it runs as its own container with a simple poll loop, publishing to the same InfluxDB instance as everything else.
+## Scaffolding still on disk
 
-## Current state
+| Piece | File | Notes |
+| --- | --- | --- |
+| Base image | `ffmpeg/Dockerfile` | FFmpeg + uv deps; not wired into Compose |
+| Poll loop | `ffmpeg/run.sh` | Calls `/app/monitor.py` (missing) |
+| Exporter scaffold | `scripts/vimeo-exporter.py` | Influx write path; broken `require_env`; keep for API flow |
+| Smoke test | `scripts/vimeodata.py` | **Working** auth + analytics POST |
 
-The foundation exists but the service is **not enabled**:
+G2 will replace the Influx write path with `prometheus-client` gauges/labels. Do not
+revive Influx for this feature.
 
-```yaml
-# FFMPEG DISABLED FOR NOW
-# ffmpeg:
-#   image: jrottenberg/ffmpeg:8.1-ubuntu
-#   ...
+## Vimeo authentication (working pattern)
+
+pyvimeo's `VimeoClient` needs **all three** of:
+
+| Env var | Role |
+| --- | --- |
+| `VIMEO_TOKEN` | Personal/access token |
+| `VIMEO_KEY` | App client ID |
+| `VIMEO_SECRET` | App client secret |
+
+```python
+from vimeo import VimeoClient
+
+client = VimeoClient(
+    token=os.environ["VIMEO_TOKEN"],
+    key=os.environ["VIMEO_KEY"],
+    secret=os.environ["VIMEO_SECRET"],
+)
 ```
 
-| Piece | File | Status |
-|---|---|---|
-| Base image | `ffmpeg/Dockerfile` | Builds on `jrottenberg/ffmpeg:8.1-ubuntu`, installs `uv`, and `pip install`s `pyvimeo`, `dotenv`, `influxdb-client` |
-| Poll loop | `ffmpeg/run.sh` | Loops every `POLL_INTERVAL` seconds (default 60), calling `python /app/monitor.py` |
-| Exporter logic | `scripts/vimeo-exporter.py` | Implements the actual probe (Vimeo API → `ffprobe` → InfluxDB write) — see [Scripts](scripts.md) |
+### Auth pitfalls
 
-These three pieces don't yet connect: `run.sh` calls `/app/monitor.py`, which doesn't exist, and the compose service that would mount `scripts/` into the container is commented out. `vimeo-exporter.py` is genuinely just scaffolding rather than a finished feature — it calls a `require_env()` that's never defined, and uses different environment variable names (`INFLUX_URL`, `INFLUX_ADMIN_TOKEN`, `INFLUX_ORG`, `INFLUX_BUCKET`) than the rest of the stack (`INFLUXDB_*`). See the [Variable Review](variable-review.md) for the full audit of naming across the stack before renaming anything here.
+- **Token alone is not enough** for this client setup — key and secret are required
+  with the patterns below.
+- Create the app and token in the Vimeo developer console with scopes that allow
+  live-event read/export for your account.
+- Event IDs are per live event; a wrong ID yields HTTP errors, not empty success.
+- Paths differ: analytics uses `/live_events/{id}/…` while playback uses
+  `/me/live_events/{id}/…`. Copy paths carefully.
 
-## How it's meant to work
+Commented placeholders for these vars live in `env.sample` under “for later (G2)”.
+
+## Working API examples
+
+### 1. Credential smoke test — `scripts/vimeodata.py`
+
+Authenticates with the triple above and **POSTs** (GET is rejected) to:
+
+```text
+https://api.vimeo.com/live_events/{VIMEO_EVENTID}/export_vpaas_analytics
+```
+
+Prints JSON on success; exits non-zero on failure. Use this before building G2.
+
+Run locally (after `just sync` and a filled `.env`):
+
+```bash
+uv run python scripts/vimeodata.py
+```
+
+### 2. HLS playback URL — exporter scaffold
+
+`scripts/vimeo-exporter.py` (scaffold) fetches the playable HLS URL with:
+
+```text
+GET https://api.vimeo.com/me/live_events/{VIMEO_EVENTID}/m3u8_playback
+```
+
+Response field of interest: `m3u8_playback_url`. That URL is what `ffprobe` should
+target. The scaffold then shells out to `ffprobe -show_streams -show_format` and
+evaluates health from resolution / fps / bitrate.
+
+The scaffold still writes Influx and calls an undefined `require_env` — treat it as
+an API flowchart, not a runnable exporter.
+
+## Intended G2 flow
 
 ```mermaid
 sequenceDiagram
-  participant Loop as run.sh (poll loop)
+  participant Loop as exporter poll loop
   participant Vimeo as Vimeo API
   participant Probe as ffprobe
-  participant Influx as InfluxDB
+  participant Prom as /metrics
 
-  loop every POLL_INTERVAL seconds
-    Loop->>Vimeo: GET live_events/{id}/m3u8_playback
-    Vimeo-->>Loop: HLS playback URL
-    Loop->>Probe: ffprobe <hls_url>
-    Probe-->>Loop: stream metadata (codec, fps, bitrate, resolution)
-    Loop->>Influx: write "stream" point (healthy, bitrate, codec, failure_reason, ...)
+  loop every POLL_INTERVAL
+    Loop->>Vimeo: GET me/live_events/{id}/m3u8_playback
+    Vimeo-->>Loop: m3u8_playback_url
+    Loop->>Probe: ffprobe hls_url
+    Probe-->>Loop: stream metadata
+    Loop->>Prom: update gauges and labels
   end
 ```
 
-The `stream` measurement is tagged by `device` (`DEVICE_NAME`), so a future multi-encoder setup could run one `ffmpeg` container per device with a different `DEVICE_NAME` each.
+Prometheus scrapes the exporter over the Cloudflare hostname route (after M4), not
+during the probe itself.
 
-## What's left to do
+## Sanity-check checklist (before G2)
 
-See the [Roadmap](../roadmap.md) for the tracked list, but at a high level: align environment variable names, fix or rename the exporter entry point so `run.sh` can call it, uncomment and correctly mount the `ffmpeg` service in `compose.yml`, and add a Grafana dashboard for the `stream` measurement.
+1. Set `VIMEO_TOKEN`, `VIMEO_KEY`, `VIMEO_SECRET`, `VIMEO_EVENTID` in `.env`.
+2. `uv run python scripts/vimeodata.py` returns 200 JSON.
+3. Manually `client.get` the `m3u8_playback` URL (or temporarily uncomment / fix
+   `get_hls_url` in the scaffold) and confirm `m3u8_playback_url` is present.
+4. Run `ffprobe` against that URL once on a machine with FFmpeg installed.
+
+Only then implement the Prometheus exporter.

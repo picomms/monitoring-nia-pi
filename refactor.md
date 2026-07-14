@@ -1,41 +1,43 @@
 # Monitoring System — Refactor Plan
 
+Architecture and locked decisions for the monitoring rebuild. For sequencing and
+milestones, see [`refactor-plan.md`](refactor-plan.md).
+
 ## Why we're changing
 
 The project started as a single Docker Compose stack limited to the streaming
 network (Telegraf → InfluxDB → Grafana, all on one host). We're now thinking
-about monitoring at a larger scale, across multiple hosts joined by Tailscale,
-with the Grafana front end moved off to a remote machine (Cherry Pi).
+about monitoring at a larger scale, across multiple hosts joined by **Cloudflare
+Tunnels**, with the central Grafana/Prometheus stack on Picomms servers
+(**Cherry** now; **Apple** later as a mirror).
 
 That shift drives three decisions:
 
 1. **Move from InfluxDB to Prometheus.** The pull/scrape model fits a fleet of
-   hosts on a tailnet far better than InfluxDB's push model, and the exporter
-   ecosystem (blackbox, node, json, speedtest) replaces most of our bespoke
-   Telegraf config. Labels also remove the hardcoded `WP1`–`WP8` pain.
-2. **Break the monolith into reusable per-host stacks.** Instead of one big
-   compose file, each host runs a small stack from its own repo, configured by a
-   unique `.env`.
-3. **One central Prometheus, many exporters.** We do **not** run a Prometheus
-   server on every endpoint — each endpoint exposes lightweight `/metrics`
-   exporters, and a single central Prometheus on Cherry Pi scrapes them all over
-   Tailscale.
+   hosts far better than InfluxDB's push model, and the exporter ecosystem
+   (blackbox, node, json, speedtest) replaces most of our bespoke Telegraf
+   config. Labels also remove the hardcoded `WP1`–`WP8` pain.
+2. **Split server vs endpoint stacks.** This repo is the **server** stack.
+   Raspberry Pis run a separate shared template (`docker-slice-pi`) with a
+   unique `.env` per host.
+3. **Central Prometheus, many exporters, linked by Cloudflare.** We do **not**
+   run a Prometheus server on every endpoint — each endpoint exposes lightweight
+   `/metrics` exporters, and the server stack scrapes them over **Cloudflare
+   Tunnels**. Every stack runs a `cloudflared` Docker container; no Tailscale
+   data path.
 
-## Repo layout (three repos)
+## Repo layout
 
 | Repo | Role | Contents |
 | --- | --- | --- |
-| **`monitoring-nia-pi`** (this repo, renamed from `NIA-stream-dashboard`) | Master / source of truth | Central documentation (MkDocs) + the FFmpeg/ffprobe stream-probe exporter (source + image). The one thing we actually build; everything else is off-the-shelf. |
-| **`docker-slice-pi`** | Reusable endpoint stack (RPis / streaming hosts) | Compose for the exporters that sit on each streaming endpoint — blackbox exporter, node exporter, the ffprobe exporter (image from `monitoring-nia-pi`), and a speedtest exporter. Deployed per host with a unique `.env`. |
-| **`docker-cherry-pi`** (the existing Cherry Pi docker repo) | Central stack on Cherry Pi | Compose for Prometheus, Grafana, Alertmanager, Cloudflared, and Tailscale, plus scrape config, alert rules, and provisioned dashboards. |
+| **`monitoring-nia-pi`** (this repo) | **Monitoring server stack** + docs | Compose for Prometheus, Grafana, Alertmanager, and **`cloudflared`**, plus scrape config, alert rules, and provisioned dashboards. Deployed on **Cherry** (primary). Later, **Apple** runs a **mirror** of the same stack (backup server). Also: MkDocs → GitHub Pages, Cloudflare guide, and (later) the ffprobe exporter source/image. Greenfield: rebuild without preserving the old Influx/Telegraf layout. |
+| **`docker-slice-pi`** | Reusable endpoint stack for the **Raspberry Pis** | One shared repo on each RPi with a unique `.env` (incl. that host's tunnel token). **First-gen Compose:** `cloudflared`, `node_exporter`, `blackbox_exporter`. **Second-gen:** ffprobe exporter (image from this repo), then other exporters as needed. The Streaming PC is out of scope for now. |
+| **`docker-cherry-pi`** (workspace reference) | Cherry host stack — **not** this monitoring service | Existing Cherry Docker repo, kept in the workspace as a reference. Eventually it holds only services **unique to Cherry**. NIA monitoring does **not** live there — that is this repo. Same idea later for Apple: host-unique services stay in an Apple host stack; the monitoring mirror is still `monitoring-nia-pi`. |
 
-Rationale: the ffprobe exporter is the only bespoke artifact, so it stays with
-the docs. Grafana/Prometheus/blackbox/speedtest are all stock images and belong
-to whichever host runs them. Keeping them out of the master repo avoids
-rebuilding the monolith we're trying to split.
-
-The current `grafana/` and `telegraf/` folders in this repo migrate out to the
-host stack repos.
+Per-host secrets for the monitoring stack stay in each server's `.env` (Cherry
+vs Apple tokens, etc.). Old Telegraf pieces in this repo are replaced in place
+as the Prometheus server stack lands; endpoint exporters belong only in
+`docker-slice-pi`.
 
 ## Physical Layout
 
@@ -90,9 +92,22 @@ flowchart TB
 
 ## Logical layout (target)
 
-Prometheus **pulls**: arrows below point from Prometheus, via the tailnet, to
-each exporter it scrapes. The ffprobe exporter exposes its own `/metrics`
-endpoint directly — it is no longer routed through Telegraf.
+Prometheus **pulls**: arrows below point from Prometheus, via Cloudflare
+Tunnels, to each exporter it scrapes. Each stack runs its own `cloudflared`
+container (token-managed, remotely configured in Zero Trust). The ffprobe
+exporter exposes its own `/metrics` endpoint directly — it is no longer routed
+through Telegraf.
+
+Every Compose stack uses two Docker networks (same names on both repos):
+
+| Network | Purpose |
+| --- | --- |
+| **`frontend`** | The cloudflared edge network. Only services that Cloudflare should reach (or that must talk *to* Cloudflare) attach here. Prefer no published host ports — `cloudflared` reaches peers by Compose service name on this network. |
+| **`backend`** | Internal stack traffic that must not be tunnel-facing. Attach services here as appropriate (e.g. Prometheus ↔ Alertmanager, Grafana ↔ Prometheus, exporters talking only among themselves). |
+
+`cloudflared` sits on **`frontend` only**. Services that are both published *and*
+need internal peers (e.g. Grafana) attach to **both** networks where that is
+appropriate.
 
 ```mermaid
 ---
@@ -101,37 +116,81 @@ config:
   layout: dagre
 ---
 flowchart LR
- subgraph endpoint["Streaming Endpoint — docker-slice-pi (per host)"]
-        ffx[["ffprobe exporter /metrics"]]
-        bbx[["blackbox exporter /metrics"]]
-        ndx[["node exporter /metrics"]]
-        spx[["speedtest exporter /metrics"]]
+ subgraph endpoint["RPi — docker-slice-pi (per host, shared repo)"]
+    subgraph ep_fe["frontend"]
+        cfe["cloudflared"]
+        ffx[["ffprobe /metrics"]]
+        bbx[["blackbox /metrics"]]
+        ndx[["node /metrics"]]
+        spx[["speedtest /metrics"]]
+    end
+    subgraph ep_be["backend"]
+        ep_be_note["backend peers as appropriate"]
+    end
   end
- subgraph cherry["Cherry Pi — docker-cherry-pi"]
+ subgraph cherry["Server — monitoring-nia-pi (Cherry; later Apple mirror)"]
+    subgraph ch_fe["frontend"]
+        cfc["cloudflared"]
+        graf[["Grafana"]]
+    end
+    subgraph ch_be["backend"]
         prom[("Prometheus")]
         am["Alertmanager"]
-        graf[["Grafana"]]
-        cf["Cloudflared"]
+    end
   end
-    tn(["Tailnet"])
+    cfnet(["Cloudflare — hostname routes"])
 
-    prom -- scrape --> tn
-    tn -- scrape --> ffx
-    tn -- scrape --> bbx
-    tn -- scrape --> ndx
-    tn -- scrape --> spx
+    prom -- scrape hostnames --> cfnet
+    cfnet --> cfe
+    cfe --> ffx
+    cfe --> bbx
+    cfe --> ndx
+    cfe --> spx
 
     prom -- alerts --> am
     graf -- query --> prom
-    cf --> graf
+    cfc -- public hostname + Access --> graf
 ```
+
+Prometheus and Alertmanager live on `backend` (and Prometheus may also join
+`frontend` only if something local must reach it). Grafana is dual-homed so
+`cloudflared` can publish it. Endpoint exporters live on `frontend` so that
+host's `cloudflared` can map tunnel hostnames to Compose service names.
+
+### Cloudflare as the data link
+
+Preference: **official `cloudflare/cloudflared` Docker containers** in each
+Compose stack — not host-installed binaries — so tunnel lifecycle matches the
+rest of the stack (`just up-tunnel` / `just down`, backed by Docker Compose).
+
+**Scrape topology (decided): hostname-based tunnel routes.** Prometheus scrapes
+stable hostnames (e.g. per-exporter or per-host names under our zone) that
+Cloudflare Tunnel maps to Compose service names on each endpoint's `frontend`
+network. No private CIDR / WARP routing for the scrape path.
+
+Intended shape:
+
+| Side | Role of `cloudflared` |
+| --- | --- |
+| **`docker-slice-pi` (each RPi)** | Outbound-only connector on `frontend`. Publishes hostname routes to that host's exporters (`http://node-exporter:9100`, etc.). One tunnel (token) per RPi, kept in that host's `.env`. |
+| **`monitoring-nia-pi` (server)** | On `frontend`: **public** hostname for Grafana behind Cloudflare Access. Prometheus scrapes RPi exporter **hostnames** via Cloudflare edge (those routes terminate on each RPi's `cloudflared`), not through the server's tunnel connector. Same Compose on Cherry now; Apple later as a mirror with its own `.env` / tunnel token. |
+
+Exporters stay off the public internet: scrape hostnames are private / Access-gated
+as documented in `docs/cloudflare.md`; only Grafana (and anything we deliberately
+publish) gets an open public hostname + Access policy. Tunnel ingress targets are
+Compose service names on `frontend` (e.g. `http://grafana:3000`), not host-published
+ports.
+
+Hostname naming, Access policies for scrape targets, and DNS are spelled out in
+`docs/cloudflare.md` — Compose only consumes tokens and service names.
 
 ## What changes, concretely
 
-### ffprobe exporter (the one build task)
+### ffprobe exporter (second generation)
 
-Today `scripts/vimeo-exporter.py` **pushes** to InfluxDB. It becomes a
-long-lived Prometheus exporter:
+Not part of the first working path. After Cherry local metrics, the slice
+template, and remote node/blackbox scrapes work, the Vimeo/ffprobe path becomes
+a long-lived Prometheus exporter:
 
 - Drop `influxdb-client`; add `prometheus-client` in `pyproject.toml`.
 - Run the probe on a background interval (keep the `run.sh` interval idea) and
@@ -142,56 +201,107 @@ long-lived Prometheus exporter:
 - **Strings have no Prometheus value type.** `codec`, `audio_codec`,
   `failure_reason` become labels on a `stream_info{...} 1` gauge. The same
   pattern applies to Web Presenter `status`/`platform` and Speedtest
-  `isp`/`server_name`.
+  `isp`/`server_name` when those land later.
 
-### Prometheus-friendly service swaps
+### Prometheus-friendly service swaps (phased)
 
-- **Speedtest:** replace Speedtest Tracker (scraped via Telegraf HTTP) with a
-  scrape-native exporter (e.g. `speedtest-exporter`) — removes a service.
-- **Web Presenters:** use `json_exporter` against the existing device HTTP APIs
-  instead of the eight hand-written `inputs.http` blocks.
-- **Network checks:** `blackbox_exporter` replaces `inputs.ping`,
-  `inputs.dns_query`, and `inputs.net_response`; `node_exporter` replaces
-  `inputs.net` / `inputs.netstat`. Telegraf can likely be retired entirely.
+**First generation (slice template + link):**
+
+- **Network / host:** `node_exporter` + `blackbox_exporter` replace Telegraf ping,
+  DNS, net_response, and host net stats for the initial remote path.
+
+**Later / second generation:**
+
+- **Speedtest:** scrape-native exporter (replaces Speedtest Tracker + Telegraf).
+- **Web Presenters:** `json_exporter` against device HTTP APIs.
+- **ffprobe / Vimeo:** bespoke exporter (see above).
+- Telegraf can be retired entirely once the above cover what we still need.
 
 ### Dashboards
 
-- All existing panels are Flux and must be rewritten in PromQL against the new
-  Prometheus datasource — this is a full rewrite, not a datasource swap.
-- The current layout is roughly good, so **document it first**
-  (`docs/dashboards.md`) before rebuilding, to avoid losing structure.
-- Labels let us collapse the hardcoded `WP1`–`WP8` panels into a single
-  template-variable-driven view.
+- First dashboard is **local Cherry metrics**, then extend for remote node +
+  blackbox once M4 works. Stream/ffprobe panels wait for second generation.
+- Old Flux boards are a full PromQL rewrite when we mirror them — optional
+  notes in `docs/dashboards.md` only if useful.
+- Labels let us collapse hardcoded `WP1`–`WP8` panels later when WP metrics exist.
 
 ### Alerting
 
-- Introduced via Alertmanager in `docker-cherry-pi`. Rules live under
+- Introduced via Alertmanager in this server stack. Rules live under
   `prometheus/rules/` and grow organically; each rule documented in
   `docs/alerting.md`. Good first alerts: stream unhealthy, `up == 0` for any
   exporter, ISP speed drop.
+
+### Documentation deliverables (master repo)
+
+| Doc | Purpose |
+| --- | --- |
+| **`docs/cloudflare.md`** | **Required.** Operator guide for hostname-based tunnels: Zero Trust prerequisites, remotely managed tunnels, per-RPi `TUNNEL_TOKEN`s, hostname → Compose service ingress on **`frontend`**, Grafana public hostname + Access, scrape-hostname Access (or equivalent), DNS, and `.env` placement. Source of truth for tunnel config — Compose only consumes tokens and service names. |
+| `docs/dashboards.md` | Capture current Grafana layout before the PromQL rewrite. |
+| `docs/alerting.md` | Document each alert rule as it is added. |
+
+`docs/cloudflare.md` should be written **before** wiring tunnels into
+`docker-slice-pi` / this server stack, so stack PRs follow a settled pattern
+instead of inventing one.
 
 ## Operational notes
 
 - **Retention:** Prometheus default (~15 days) is fine; no long-term store
   needed for now.
-- **Service discovery:** static scrape configs using Tailscale MagicDNS names
-  are fine at this scale; revisit `http_sd` off the tailnet device list later.
-- **Security:** exporters serve unauthenticated `/metrics` — bind them to the
-  tailnet interface (not `0.0.0.0`/LAN), restrict scraping with Tailscale ACLs,
-  keep Grafana auth on behind Cloudflared, and keep per-host secrets in each
-  host's `.env` (never in the master repo).
-- **Migration:** run old and new stacks in parallel during cutover; historical
-  InfluxDB data does not carry over to Prometheus.
+- **Service discovery:** static Prometheus scrape configs using the Cloudflare
+  tunnel hostnames for each RPi exporter; revisit later if host count grows.
+- **Compose networks:** every stack declares `frontend` and `backend`.
+  `cloudflared` is `frontend`-only; dual-homed services join both when they
+  need tunnel reachability *and* internal peers. Prefer no host `ports:` for
+  tunnel-fronted services — publish only via Cloudflare.
+- **Security:** exporters serve unauthenticated `/metrics` — they must **not**
+  be open public hostnames. Reachability is via Cloudflare hostname routes
+  (Access-gated as needed) and local Docker networks (`frontend` / `backend`).
+  Grafana stays behind Cloudflare Access on its public hostname. Per-host
+  tunnel tokens and other secrets live in each host's `.env` (never in the
+  master repo).
+- **cloudflared image:** pin a known `cloudflare/cloudflared` tag in Compose
+  (avoid floating `:latest` in production stacks). Prefer remotely managed
+  tunnels (`TUNNEL_TOKEN`) so ingress/hostname routes are edited in the Zero
+  Trust dashboard without baking `config.yml` into images.
+- **Migration:** greenfield — we have not launched. Topple the current
+  Influx/Telegraf/Grafana-on-streaming-host design and build the server stack
+  in this repo on Cherry (Apple mirror later). No parallel old/new cutover
+  required; historical InfluxDB data does not carry over. Tailscale is **not**
+  part of the target data path.
+
+## Decisions (locked)
+
+- **Tunnel routing:** hostname-based (not private CIDR / WARP) for Prometheus
+  scrapes and published services.
+- **Server stack:** this repo (`monitoring-nia-pi`) deploys the central
+  Prometheus/Grafana stack. Primary host is **Cherry**; **Apple** will later
+  run a **mirror** of the same stack (backup server). Unique `.env` per server.
+  Host-unique services on Cherry stay in **`docker-cherry-pi`** (workspace
+  reference for now) — that repo does **not** run this monitoring service.
+- **Endpoint targets:** Raspberry Pis run `docker-slice-pi`. Streaming PC
+  deferred (own stack or nothing) until we decide to collect metrics there.
+- **`docker-slice-pi`:** one shared repo across RPis; unique `.env` per host.
+- **Docs:** live in this repo and publish to GitHub Pages.
+- **Build order:** Cherry local metrics + dashboard → slice template → remote
+  node/blackbox scrapes → **then** ffprobe (second gen). Apple mirror after the
+  primary path is solid.
+- **Destination:** central monitoring on Picomms servers + Prometheus; not an
+  incremental keep-the-old-stack migration.
+- **Freedom to rebuild:** stack not launched — rewrite Compose/docs freely.
 
 ## Repo names (decided)
 
-- Master / docs + ffprobe exporter: **`monitoring-nia-pi`** (rename of this repo).
-- Central stack on Cherry Pi: **`docker-cherry-pi`**.
-- Reusable endpoint stack on the RPis: **`docker-slice-pi`**.
+- Monitoring server stack + docs + (later) ffprobe exporter: **`monitoring-nia-pi`**.
+- Reusable RPi endpoint stack: **`docker-slice-pi`**.
+- Cherry host-unique services: **`docker-cherry-pi`** (reference in workspace;
+  not where NIA monitoring lives).
 
 ## Open questions
 
-- Do near-identical streaming hosts share one `docker-slice-pi` (templated by a
-  unique `.env` per host) or get copies? Sharing is preferred once there's more
-  than one.
-```
+- Hostname scheme for scrape targets (one hostname per exporter vs one per
+  host with paths) — settle in `docs/cloudflare.md`.
+- Whether Web Presenter / blackbox probes run on every RPi or a subset that
+  can reach the streaming LAN devices.
+- Apple mirror details (active/passive, scrape ownership, Grafana hostname) —
+  defer until the Cherry path works; same Compose, different `.env`.

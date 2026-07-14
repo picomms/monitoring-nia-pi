@@ -1,69 +1,63 @@
 # Architecture
 
-## Services
+Everything is defined in `compose.yml` under the Compose project name
+`monitoring-nia`. The [Decisions](decisions.md) page summarizes the locked
+architecture; the complete record lives in `refactor.md` at the repo root.
 
-Everything is defined in [compose.yml](https://github.com/PiCommCapp/NIA-stream-dashboard/blob/main/compose.yml) under the Compose project name `stream-dashboard`.
+## Services (M1)
 
 ```mermaid
 flowchart TB
   subgraph backend [backend network]
-    InfluxDB[(influxdb2)]
-    Telegraf[telegraf]
+    Prometheus[prometheus]
     Grafana[grafana]
-    FFmpeg["ffmpeg\n(disabled)"]
+    NE[node_exporter]
   end
   subgraph frontend [frontend network]
     Grafana
-    Speedtest[speedtest-tracker]
-    FFmpeg
+    CF["cloudflared\n(profile: tunnel)"]
   end
-  Telegraf --> InfluxDB
-  Grafana --> InfluxDB
-  Speedtest -.->|scraped by| Telegraf
-  FFmpeg -.-> InfluxDB
+  NE -->|node_exporter:9100| Prometheus
+  Grafana --> Prometheus
+  CF -.-> Grafana
 ```
 
 | Service | Image | Networks | Notes |
-|---|---|---|---|
-| `influxdb2` | `influxdb:${INFLUXDB_VERSION}` | backend | Healthcheck via `influx ping`; seeded on first boot from `INFLUXDB_*` env vars |
-| `telegraf` | built from `./telegraf` | backend | Mounts host `/etc`, `/proc`, `/sys`, `/var`, `/run` read-only under `/hostfs` for host-level metrics; runs with `NET_ADMIN` for ICMP ping |
-| `grafana` | `grafana/grafana:${GRAFANA_VERSION}` | backend, frontend | Provisioned from `./grafana/datasources` and `./grafana/dashboards`; depends on `influxdb2` and `telegraf` |
-| `speedtest-tracker` | `lscr.io/linuxserver/speedtest-tracker` | backend, frontend | Runs its own scheduled speed tests (`SPEEDTEST_SCHEDULE`) independent of Telegraf; Telegraf scrapes its results API |
-| `ffmpeg` | built from `./ffmpeg` | backend, frontend | Currently commented out in `compose.yml`; see [FFmpeg / Vimeo](ffmpeg-vimeo.md) |
+| --- | --- | --- | --- |
+| `prometheus` | `prom/prometheus` | backend | Scrapes self + Cherry `node_exporter`; TSDB on `NSD_prometheus_data` |
+| `grafana` | `grafana/grafana` | backend, frontend | Provisioned datasource + dashboards; LAN port published |
+| `node_exporter` | `quay.io/prometheus/node-exporter` | backend | `pid: host` + rootfs bind; scraped as `node_exporter:9100` |
+| `cloudflared` | `cloudflare/cloudflared` | frontend | Profile `tunnel` only; needs `TUNNEL_TOKEN` |
+
+Legacy `telegraf/` and future-G2 `ffmpeg/` / `scripts/` directories remain on
+disk but are **not** started by Compose.
 
 ## Networks
 
-Two Compose networks separate concerns:
+| Network | Purpose |
+| --- | --- |
+| `backend` | Internal stack traffic (Prometheus ↔ Grafana) |
+| `frontend` | Tunnel-facing edge (`cloudflared`, Grafana dual-homed) |
 
-- **`backend`** — internal data plane (Telegraf → InfluxDB, Grafana → InfluxDB)
-- **`frontend`** — services with a browser/API-facing port (Grafana, Speedtest Tracker, and eventually FFmpeg for debugging access)
+Networks are project-scoped (not shared bare `frontend`/`backend` names) so this
+stack does not collide with other Compose projects on Cherry.
 
 ## Volumes
 
-All named volumes are prefixed `NSD_` (NIA Stream Dashboard) to make them identifiable with `docker volume ls`:
-
-| Volume | Used by | Contents |
-|---|---|---|
-| `NSD_influxdb2-data` | influxdb2 | Time-series data |
-| `NSD_influxdb2-config` | influxdb2 | InfluxDB's own config, generated on setup |
-| `NSD_grafana_data` | grafana | Grafana's internal SQLite DB (users, sessions) |
-| `NSD_speedtest-tracker-data` | speedtest-tracker | SQLite DB of speed test results |
-
-`make clean` removes every `NSD_*` volume, so back up anything you need before running it.
+| Volume | Contents |
+| --- | --- |
+| `NSD_prometheus_data` | Prometheus TSDB |
+| `NSD_grafana_data` | Grafana internal DB |
 
 ## Data model
 
-Everything ends up in a single InfluxDB bucket as separate **measurements**, keeping the schema flat and easy to query from Grafana with Flux:
+Prometheus metrics with labels. Local scrape jobs today:
 
-| Measurement | Written by | Key fields |
-|---|---|---|
-| `PingChecks` | Telegraf `inputs.ping` | `average_response_ms`, `percent_packet_loss` |
-| `NetworkInterfaces` | Telegraf `inputs.net` | `bytes_sent`, `bytes_recv`, `err_in`, `err_out`, `drop_in`, `drop_out` |
-| `NetworkStats` | Telegraf `inputs.netstat` | `tcp_established`, `tcp_listen`, `tcp_time_wait`, etc. |
-| `VimeoResponse` | Telegraf `inputs.net_response` | `response_time` (TCP connect time to vimeo.com:443) |
-| `VimeoDNSQuery` | Telegraf `inputs.dns_query` | `query_time_ms` |
-| `SpeedTest` | Telegraf `inputs.http` (Speedtest Tracker API) | `ping`, `download`, `upload`, `packetLoss`, `isp`, `server_name` |
-| `WP1` … `WP8` | Telegraf `inputs.http` (Web Presenter API) | `status`, `videoBitrate`, `platform`/`name`, `cache` |
-| `stream` (planned) | `scripts/vimeo-exporter.py` | `healthy`, `bitrate`, `codec`, `width`, `height`, `fps`, `failure_reason` |
+| Job | Target | Purpose |
+| --- | --- | --- |
+| `prometheus` | `localhost:9090` | Self-metrics |
+| `node` | `node_exporter:9100` | Cherry host metrics (`instance=cherry`) |
 
-See [Telegraf](telegraf.md) for exactly how each input is configured, and [InfluxDB](influxdb.md) for organization/bucket conventions.
+Remote scrape jobs and Alertmanager arrive in later milestones.
+See [Prometheus](prometheus.md) for the target configuration, the Cherry
+Compose-DNS decision, health checks, and reload procedure.

@@ -1,32 +1,41 @@
-# NIA Stream Dashboard
+# NIA Monitoring
 
-NIA Stream Dashboard is a self-hosted monitoring platform for live-streaming infrastructure. It watches network health, ISP speed, and up to eight Blackmagic Web Presenter encoders, and is growing a Vimeo/FFmpeg stream probe to verify the health of outbound streams themselves.
+Central monitoring server stack for live-streaming infrastructure. Deployed on
+**Cherry** (Picomms). Metrics are scraped with Prometheus and visualised in
+Grafana. M1 is complete: Cherry's local host metrics are live. Raspberry Pi
+exporters and Cloudflare scrape routes come in later milestones.
 
-The entire stack runs as a Docker Compose project named `stream-dashboard`.
+Compose project name: `monitoring-nia`.
 
 ## Architecture at a glance
 
 ```mermaid
 flowchart LR
-  WP["Web Presenters\n(WP1-WP8)"] -->|HTTP API| Telegraf
-  Speedtest["Speedtest Tracker"] -->|HTTP API| Telegraf
-  Host["Host network\n(ping, interfaces, DNS)"] --> Telegraf
-  Telegraf --> InfluxDB
-  InfluxDB --> Grafana
-  FFmpeg["FFmpeg service\n(planned, disabled)"] -.->|Vimeo API + ffprobe| InfluxDB
+  NE[node_exporter] -->|scrape| Prometheus
+  Prometheus -->|PromQL| Grafana
+  CF["cloudflared\n(optional)"] -.->|frontend| Grafana
 ```
 
 | Component | Role |
-|---|---|
-| **Telegraf** | Polls devices and the host every 10 seconds and writes metrics to InfluxDB |
-| **InfluxDB 2** | Time-series store for all metrics |
-| **Grafana** | Provisioned dashboards for network health, speed tests, and device status |
-| **Speedtest Tracker** | Runs scheduled ISP speed tests and exposes them over HTTP |
-| **FFmpeg service** | Not yet enabled — will probe Vimeo HLS streams with `ffprobe` and publish stream health metrics |
+| --- | --- |
+| **Prometheus** | Scrapes local targets and stores TSDB data |
+| **Grafana** | Provisioned PromQL dashboards |
+| **node_exporter** | Cherry host CPU / memory / disk / network metrics |
+| **cloudflared** | Optional Cloudflare Tunnel for Grafana (profile `tunnel`) |
+
+The Vimeo/ffprobe exporter is planned as second-generation work — auth notes live
+in [FFmpeg / Vimeo](developer/ffmpeg-vimeo.md).
+
+## Project direction
+
+The [Decisions](developer/decisions.md) page summarizes the architecture choices
+we have locked. The repository-root `refactor.md` is the complete decision record,
+while `refactor-plan.md` defines milestone order and done criteria.
 
 ## Where to go next
 
 - New to the project? Start with [Getting Started](user/getting-started.md).
-- Setting up environment variables or new devices? See [Configuration](user/configuration.md).
-- Working on the dashboards or the data pipeline? See the [Developer Guide](developer/architecture.md).
-- Curious about known issues and what's being built next? See the [Roadmap](roadmap.md).
+- Environment variables: [Configuration](user/configuration.md).
+- Stack layout: [Architecture](developer/architecture.md).
+- Scrapes and reloads: [Prometheus](developer/prometheus.md).
+- Milestones and deferred work: [Roadmap](roadmap.md).

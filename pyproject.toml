@@ -1,7 +1,7 @@
 [project]
 name = "nia-stream-dashboard"
 version = "0.1.0"
-description = "Stream monitoring platform: Telegraf, InfluxDB, Grafana, and a Vimeo/FFmpeg stream probe"
+description = "NIA monitoring server stack: Prometheus, Grafana, and (later) a Vimeo/ffprobe exporter"
 requires-python = ">=3.12"
 dependencies = [
   "pyvimeo",

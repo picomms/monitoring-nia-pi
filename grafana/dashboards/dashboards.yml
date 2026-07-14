@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: NIA Stream Dashboards
+  - name: NIA Monitoring
     orgId: 1
-    folder: NIA Stream
+    folder: NIA Monitoring
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30

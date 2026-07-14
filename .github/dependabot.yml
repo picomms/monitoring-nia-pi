@@ -1,0 +1,24 @@
+# Dependabot version updates for this repo.
+# Compose image pins live in env.sample (${FOO_VERSION}); bump those manually
+# or via env PRs — docker-compose ecosystem cannot read those substitutions.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
