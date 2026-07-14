@@ -164,16 +164,16 @@ Compose stack — not host-installed binaries — so tunnel lifecycle matches th
 rest of the stack (`just up-tunnel` / `just down`, backed by Docker Compose).
 
 **Scrape topology (decided): hostname-based tunnel routes.** Prometheus scrapes
-stable hostnames (e.g. per-exporter or per-host names under our zone) that
-Cloudflare Tunnel maps to Compose service names on each endpoint's `frontend`
-network. No private CIDR / WARP routing for the scrape path.
+stable per-exporter hostnames with a `mon-` prefix under `cothrom.ie` that Cloudflare Tunnel maps
+to Compose service names on each endpoint's `frontend` network. No private CIDR /
+WARP routing for the scrape path.
 
 Intended shape:
 
 | Side | Role of `cloudflared` |
 | --- | --- |
-| **`docker-slice-pi` (each RPi)** | Outbound-only connector on `frontend`. Publishes hostname routes to that host's exporters (`http://node-exporter:9100`, etc.). One tunnel (token) per RPi, kept in that host's `.env`. |
-| **`monitoring-nia-pi` (server)** | On `frontend`: **public** hostname for Grafana behind Cloudflare Access. Prometheus scrapes RPi exporter **hostnames** via Cloudflare edge (those routes terminate on each RPi's `cloudflared`), not through the server's tunnel connector. Same Compose on Cherry now; Apple later as a mirror with its own `.env` / tunnel token. |
+| **`docker-slice-pi` (each RPi)** | Outbound-only connector on `frontend`. Publishes per-exporter hostname routes such as `mon-node-pi1.cothrom.ie` → `http://node_exporter:9100`. One tunnel (token) per RPi, kept in that host's `.env`. |
+| **`monitoring-nia-pi` (server)** | On `frontend`: `mon-grafana.cothrom.ie` for Grafana behind Cloudflare Access. Prometheus scrapes RPi exporter **hostnames** via Cloudflare edge (those routes terminate on each RPi's `cloudflared`), not through the server's tunnel connector. Same Compose on Cherry now; Apple later as a mirror with its own `.env` / tunnel token. |
 
 Exporters stay off the public internet: scrape hostnames are private / Access-gated
 as documented in `docs/cloudflare.md`; only Grafana (and anything we deliberately
@@ -182,7 +182,8 @@ Compose service names on `frontend` (e.g. `http://grafana:3000`), not host-publi
 ports.
 
 Hostname naming, Access policies for scrape targets, and DNS are spelled out in
-`docs/cloudflare.md` — Compose only consumes tokens and service names.
+`docs/cloudflare.md`: monitoring lives with a `mon-` prefix under `cothrom.ie`, with one hostname
+per exporter. Compose only consumes tokens and service names.
 
 ## What changes, concretely
 
@@ -236,7 +237,7 @@ a long-lived Prometheus exporter:
 
 | Doc | Purpose |
 | --- | --- |
-| **`docs/cloudflare.md`** | **Required.** Operator guide for hostname-based tunnels: Zero Trust prerequisites, remotely managed tunnels, per-RPi `TUNNEL_TOKEN`s, hostname → Compose service ingress on **`frontend`**, Grafana public hostname + Access, scrape-hostname Access (or equivalent), DNS, and `.env` placement. Source of truth for tunnel config — Compose only consumes tokens and service names. |
+| **`docs/cloudflare.md`** | **Required.** Operator guide for hostname-based tunnels on `cothrom.ie`: Zero Trust prerequisites, remotely managed tunnels, per-host `TUNNEL_TOKEN`s, hostname → Compose service ingress on **`frontend`**, `mon-grafana.cothrom.ie` + Access, per-exporter scrape hostnames with a `mon-` prefix under `cothrom.ie`, DNS, and `.env` placement. Source of truth for tunnel config — Compose only consumes tokens and service names. |
 | `docs/dashboards.md` | Capture current Grafana layout before the PromQL rewrite. |
 | `docs/alerting.md` | Document each alert rule as it is added. |
 
@@ -248,8 +249,9 @@ instead of inventing one.
 
 - **Retention:** Prometheus default (~15 days) is fine; no long-term store
   needed for now.
-- **Service discovery:** static Prometheus scrape configs using the Cloudflare
-  tunnel hostnames for each RPi exporter; revisit later if host count grows.
+- **Service discovery:** static Prometheus scrape configs using per-exporter
+  Cloudflare tunnel hostnames for each RPi exporter; revisit later if host count
+  grows.
 - **Compose networks:** every stack declares `frontend` and `backend`.
   `cloudflared` is `frontend`-only; dual-homed services join both when they
   need tunnel reachability *and* internal peers. Prefer no host `ports:` for
@@ -274,6 +276,9 @@ instead of inventing one.
 
 - **Tunnel routing:** hostname-based (not private CIDR / WARP) for Prometheus
   scrapes and published services.
+- **Hostname scheme:** monitoring uses `mon-*` hostnames under `cothrom.ie`; Grafana is
+  `mon-grafana.cothrom.ie`; exporters use per-exporter hostnames like
+  `mon-node-<HOST_ID>.cothrom.ie` and `mon-blackbox-<HOST_ID>.cothrom.ie`.
 - **Server stack:** this repo (`monitoring-nia-pi`) deploys the central
   Prometheus/Grafana stack. Primary host is **Cherry**; **Apple** will later
   run a **mirror** of the same stack (backup server). Unique `.env` per server.
@@ -299,8 +304,6 @@ instead of inventing one.
 
 ## Open questions
 
-- Hostname scheme for scrape targets (one hostname per exporter vs one per
-  host with paths) — settle in `docs/cloudflare.md`.
 - Whether Web Presenter / blackbox probes run on every RPi or a subset that
   can reach the streaming LAN devices.
 - Apple mirror details (active/passive, scrape ownership, Grafana hostname) —

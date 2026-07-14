@@ -38,15 +38,16 @@ just docs-build
 
 ## Documentation
 
-Published at [https://picommcapp.github.io/NIA-stream-dashboard/](https://picommcapp.github.io/NIA-stream-dashboard/).
+Published at [https://picomms.github.io/monitoring-nia-pi/](https://picomms.github.io/monitoring-nia-pi/).
+Source: [github.com/picomms/monitoring-nia-pi](https://github.com/picomms/monitoring-nia-pi).
 
 Start with the published
 [architecture](docs/developer/architecture.md),
 [decisions](docs/developer/decisions.md), and
-[Prometheus operations](docs/developer/prometheus.md). The complete decision
-record and milestone sequence are [`refactor.md`](refactor.md) and
-[`refactor-plan.md`](refactor-plan.md). Vimeo auth notes for the future ffprobe
-exporter live in
+[Prometheus operations](docs/developer/prometheus.md). Tunnel and DNS setup is in
+[Cloudflare](docs/cloudflare.md). The complete decision record and milestone
+sequence are [`refactor.md`](refactor.md) and [`refactor-plan.md`](refactor-plan.md).
+Vimeo auth notes for the future ffprobe exporter live in
 [docs/developer/ffmpeg-vimeo.md](docs/developer/ffmpeg-vimeo.md).
 
 ## License

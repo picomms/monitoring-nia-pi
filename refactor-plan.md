@@ -43,24 +43,40 @@ Write `docs/cloudflare.md` with only what we need for the link:
 - Remotely managed tunnel + `TUNNEL_TOKEN` (Cherry Grafana + each RPi)
 - Hostname → Compose service on `frontend`
 - How Prometheus scrapes remote exporter hostnames
+- Lock monitoring with a `mon-` prefix under `cothrom.ie`:
+  - `mon-grafana.cothrom.ie` → Cherry Grafana
+  - `mon-node-<HOST_ID>.cothrom.ie` → each host's node exporter
+  - `mon-blackbox-<HOST_ID>.cothrom.ie` → each host's blackbox exporter
 
 **Done when:** tunnels/DNS/tokens can be created from the doc without guessing.
 
-Settle the hostname scheme here. Do not expand into a full Zero Trust handbook.
+Do not expand into a full Zero Trust handbook.
+
+**Status:** In progress — hostname scheme locked; Cherry tunnel verification
+pending.
 
 ### M3 — Slice template compose (`docker-slice-pi`)
 
 One shared repo; unique `.env` per RPi. Template stack only:
 
-- `frontend` / `backend` networks
+- `frontend` / `backend` networks (project-scoped)
 - `cloudflared`
 - `node_exporter`
 - `blackbox_exporter` (config stub for the probes we care about)
+
+Canonical files live in `template/endpoint/` in this repo; docs in
+`docs/developer/slice.md`. Promote by copying into `docker-slice-pi` when ready.
 
 **Done when:** the template is documented and `compose up` works on a pilot RPi
 with exporters reachable on `frontend` (even before Cherry scrapes them).
 
 No ffprobe, no speedtest in the template yet.
+
+**Status:** Done — `template/endpoint/` + [Slice](docs/developer/slice.md);
+promoted to `docker-slice-pi`; pilot smoke on Cherry (`node_exporter` +
+`blackbox_exporter` up, HTTP 200 from a peer on `slice-pi_frontend`, no host
+ports). Live Zero Trust Public Hostnames / connector for a dedicated Pi tunnel
+need a real `TUNNEL_TOKEN` on the target host (operator step before M4).
 
 ### M4 — Link slice → Cherry (network / blackbox only)
 

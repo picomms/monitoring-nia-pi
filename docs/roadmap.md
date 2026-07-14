@@ -9,8 +9,8 @@ live in `refactor-plan.md` at the repo root; locked architecture is in `refactor
 | Milestone | Status | Summary |
 | --- | --- | --- |
 | **M1** — Cherry local metrics + dashboard | **Done** | Prometheus + Grafana + `node_exporter`; both targets UP; provisioned dashboard live; justfile + CI/Pages |
-| **M2** — Cloudflare hostname guide | Next | `docs/cloudflare.md` for tunnels / scrape hostnames |
-| **M3** — Slice template | Later | `docker-slice-pi`: cloudflared + node + blackbox |
+| **M2** — Cloudflare hostname guide | In progress | `docs/cloudflare.md`; Cherry Grafana at `mon-grafana.cothrom.ie`; per-exporter hostnames with a `mon-` prefix under `cothrom.ie` |
+| **M3** — Slice template | **Done** | Canonical `template/endpoint/` + [Slice](developer/slice.md); promoted to `docker-slice-pi`; frontend reachability verified |
 | **M4** — Link slice → Cherry | Later | Scrape pilot RPi over tunnel hostnames |
 | **M5** — Light alerting | Optional | Alertmanager + a few rules |
 | **G2** — ffprobe exporter | After M4 | Prometheus exporter; auth notes in [FFmpeg / Vimeo](developer/ffmpeg-vimeo.md) |

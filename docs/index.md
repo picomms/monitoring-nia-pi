@@ -36,6 +36,8 @@ while `refactor-plan.md` defines milestone order and done criteria.
 
 - New to the project? Start with [Getting Started](user/getting-started.md).
 - Environment variables: [Configuration](user/configuration.md).
+- Tunnel / DNS runbook: [Cloudflare](cloudflare.md).
+- RPi endpoint template: [Slice](developer/slice.md).
 - Stack layout: [Architecture](developer/architecture.md).
 - Scrapes and reloads: [Prometheus](developer/prometheus.md).
 - Milestones and deferred work: [Roadmap](roadmap.md).

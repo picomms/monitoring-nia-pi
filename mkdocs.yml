@@ -1,8 +1,8 @@
 site_name: NIA Monitoring
 site_description: Documentation for the NIA Monitoring server stack (Prometheus + Grafana)
-site_url: https://picommcapp.github.io/NIA-stream-dashboard/
-repo_url: https://github.com/PiCommCapp/NIA-stream-dashboard
-repo_name: PiCommCapp/NIA-stream-dashboard
+site_url: https://picomms.github.io/monitoring-nia-pi/
+repo_url: https://github.com/picomms/monitoring-nia-pi
+repo_name: picomms/monitoring-nia-pi
 edit_uri: edit/main/docs/
 
 theme:
@@ -46,11 +46,13 @@ nav:
       - Configuration: user/configuration.md
       - Dashboards: user/dashboards.md
       - Operations: user/operations.md
+  - Cloudflare: cloudflare.md
   - Developer Guide:
       - Architecture: developer/architecture.md
       - Decisions: developer/decisions.md
       - Prometheus: developer/prometheus.md
       - Grafana: developer/grafana.md
+      - Slice: developer/slice.md
       - Scripts: developer/scripts.md
       - FFmpeg / Vimeo: developer/ffmpeg-vimeo.md
   - Roadmap: roadmap.md

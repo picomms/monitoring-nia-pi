@@ -51,7 +51,7 @@ services:
       - GF_SECURITY_ADMIN_USER=${GF_ADMIN_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GF_ADMIN_PASSWORD:-changeme}
       - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SERVER_ROOT_URL=http://${GRAFANA_HOST:-localhost}:${GRAFANA_PORT:-3000}
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://${GRAFANA_HOST:-localhost}:${GRAFANA_PORT:-3000}}
     volumes:
       - NSD_grafana_data:/var/lib/grafana
       - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro

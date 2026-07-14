@@ -1,0 +1,63 @@
+# -----------------------------------------------
+# NIA Monitoring — endpoint stack (Raspberry Pi)
+# Canonical template: monitoring-nia-pi/template/endpoint/
+# Deploy copy: docker-slice-pi
+# -----------------------------------------------
+name: slice-pi
+
+# -----------------------------------------------
+# Networks (project-scoped — do not pin bare names)
+# -----------------------------------------------
+networks:
+  frontend:
+  backend:
+
+# -----------------------------------------------
+# Shared service defaults
+# -----------------------------------------------
+x-restart: &restart_policy
+  restart: unless-stopped
+
+# -----------------------------------------------
+# Services
+# -----------------------------------------------
+services:
+  # ----------------- cloudflared -----------------
+  cloudflared:
+    <<: *restart_policy
+    image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-2026.7.1}
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:?TUNNEL_TOKEN is required}
+    networks:
+      - frontend
+
+  # --------------- node_exporter -----------------
+  # On frontend so this host's cloudflared can publish
+  # mon-node-<HOST_ID>.cothrom.ie → http://node_exporter:9100
+  node_exporter:
+    <<: *restart_policy
+    image: quay.io/prometheus/node-exporter:${NODE_EXPORTER_VERSION:-v1.12.0}
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - frontend
+
+  # ------------- blackbox_exporter ---------------
+  # On frontend so this host's cloudflared can publish
+  # mon-blackbox-<HOST_ID>.cothrom.ie → http://blackbox_exporter:9115
+  blackbox_exporter:
+    <<: *restart_policy
+    image: quay.io/prometheus/blackbox-exporter:${BLACKBOX_EXPORTER_VERSION:-v0.28.0}
+    command:
+      - --config.file=/etc/blackbox_exporter/config.yml
+    # Required for the icmp module when used later
+    cap_add:
+      - NET_RAW
+    volumes:
+      - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    networks:
+      - frontend

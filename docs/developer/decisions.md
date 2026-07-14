@@ -8,7 +8,8 @@ root; sequencing and done criteria live in `refactor-plan.md`.
 
 - This repository is the monitoring **server stack**, deployed on Cherry.
 - `docker-slice-pi` is the reusable endpoint stack for Raspberry Pis, with one
-  host-specific `.env` per Pi.
+  host-specific `.env` per Pi. The canonical template is reviewed under
+  `template/endpoint/` here before copy/promote — see [Slice](slice.md).
 - Apple will run a mirror of this server stack later. Host-specific services do
   not belong in this repository.
 
@@ -28,7 +29,11 @@ root; sequencing and done criteria live in `refactor-plan.md`.
 - Remote exporters will be scraped through stable, hostname-based Cloudflare
   Tunnel routes. Tailscale and private-CIDR/WARP routing are not part of the
   monitoring data path.
-- The exact hostname and Access policy scheme is the M2 deliverable.
+- Monitoring hostnames live with a `mon-` prefix under `cothrom.ie`, with one hostname per
+  exporter (`mon-node-<HOST_ID>.cothrom.ie`, `mon-blackbox-<HOST_ID>.cothrom.ie`)
+  and Grafana at `mon-grafana.cothrom.ie`.
+- Grafana and exporter hostnames are protected by Cloudflare Access; Prometheus
+  will use an Access Service Token for remote exporter scrapes in M4.
 
 ## Delivery order
 
@@ -45,5 +50,6 @@ root; sequencing and done criteria live in `refactor-plan.md`.
 - Provisioned Grafana JSON and Prometheus YAML in this repository are the source
   of truth.
 
-See the [Architecture](architecture.md), [Prometheus](prometheus.md), and
-[Roadmap](../roadmap.md) for the current implementation and next steps.
+See [Cloudflare](../cloudflare.md), [Architecture](architecture.md),
+[Prometheus](prometheus.md), and [Roadmap](../roadmap.md) for the current
+implementation and next steps.

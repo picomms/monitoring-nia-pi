@@ -8,6 +8,7 @@ All runtime configuration is driven by a `.env` file at the repo root (copy
 | Variable | Default | Description |
 | --- | --- | --- |
 | `TZ` | `Europe/Dublin` | Host timezone (informative; containers may still use UTC clocks) |
+| `HOST_ID` | `cherry` | Short per-host slug used when creating monitoring hostnames |
 | `PROMETHEUS_VERSION` | `v3.13.1` | `prom/prometheus` image tag |
 | `GRAFANA_VERSION` | `13.0` | `grafana/grafana` image tag |
 | `NODE_EXPORTER_VERSION` | `v1.12.0` | `quay.io/prometheus/node-exporter` image tag |
@@ -26,7 +27,8 @@ All runtime configuration is driven by a `.env` file at the repo root (copy
 | --- | --- | --- |
 | `GF_ADMIN_USER` | `admin` | Grafana admin username |
 | `GF_ADMIN_PASSWORD` | `changeme` | Grafana admin password |
-| `GRAFANA_HOST` | `localhost` | Hostname used to build `GF_SERVER_ROOT_URL` |
+| `GRAFANA_HOST` | `localhost` | LAN fallback when `GRAFANA_ROOT_URL` is unset |
+| `GRAFANA_ROOT_URL` | `https://mon-grafana.cothrom.ie` | Public Grafana URL behind Cloudflare Access |
 
 ## Cloudflare Tunnel (optional)
 
@@ -34,8 +36,8 @@ All runtime configuration is driven by a `.env` file at the repo root (copy
 | --- | --- |
 | `TUNNEL_TOKEN` | Remotely managed tunnel token. Required only when starting with `just up-tunnel`. |
 
-Hostname / Access setup is documented later (milestone M2). Compose only consumes
-the token.
+Hostname / Access setup is in [Cloudflare](../cloudflare.md). Compose only consumes
+the token; ingress routes are managed in Zero Trust.
 
 ## Vimeo / ffprobe (later — G2)
 

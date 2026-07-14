@@ -24,6 +24,7 @@ summaries are `docs/developer/decisions.md` and
 | `prometheus/` | Prometheus scrape config; operational notes in `docs/developer/prometheus.md` |
 | `grafana/` | Provisioned datasource + dashboard JSON (source of truth) |
 | `docs/` | MkDocs source; `developer/decisions.md` is the concise architecture digest |
+| `template/endpoint/` | Canonical RPi endpoint template (promote to `docker-slice-pi`) |
 | `ffmpeg/`, `scripts/` | Future ffprobe exporter scaffolding (G2) — not in Compose |
 | `telegraf/` | Legacy Telegraf config (unused by current Compose) |
 | `pyproject.toml` | Python deps for scripts + docs toolchain (`uv`) |

@@ -38,10 +38,11 @@ curl --request POST http://localhost:9090/-/reload
 
 ## Cloudflare profile
 
-`just up` does not start `cloudflared`. Set `TUNNEL_TOKEN` in `.env` and run
+`just up` does not start `cloudflared`. Set `TUNNEL_TOKEN` and
+`GRAFANA_ROOT_URL=https://mon-grafana.cothrom.ie` in `.env`, then run
 `just up-tunnel` when the remotely managed tunnel is ready. The container has no
 published host port; it reaches Grafana over the Compose `frontend` network.
-Hostname and Access policy setup is the next milestone.
+See [Cloudflare](../cloudflare.md) for the `cothrom.ie` hostname and Access setup.
 
 ## Docs
 

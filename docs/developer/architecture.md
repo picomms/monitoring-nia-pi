@@ -61,3 +61,6 @@ Prometheus metrics with labels. Local scrape jobs today:
 Remote scrape jobs and Alertmanager arrive in later milestones.
 See [Prometheus](prometheus.md) for the target configuration, the Cherry
 Compose-DNS decision, health checks, and reload procedure.
+
+Endpoint Pis run a separate Compose template (`cloudflared` + `node_exporter` +
+`blackbox_exporter`). See [Slice](slice.md).
