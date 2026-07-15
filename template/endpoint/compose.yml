@@ -2,6 +2,8 @@
 # NIA Monitoring — endpoint stack (Raspberry Pi)
 # Canonical template: monitoring-nia-pi/template/endpoint/
 # Deploy copy: docker-slice-pi
+# Scrapes: Tailscale → host ports 9100/9115
+# Optional: cloudflared (profile tunnel) for debug hostnames
 # -----------------------------------------------
 name: slice-pi
 
@@ -23,18 +25,21 @@ x-restart: &restart_policy
 # -----------------------------------------------
 services:
   # ----------------- cloudflared -----------------
+  # Optional — scrapes use Tailscale host ports, not the tunnel.
   cloudflared:
     <<: *restart_policy
+    profiles:
+      - tunnel
     image: cloudflare/cloudflared:${CLOUDFLARED_VERSION:-2026.7.1}
     command: tunnel run
     environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN:?TUNNEL_TOKEN is required}
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-}
     networks:
       - frontend
 
   # --------------- node_exporter -----------------
-  # On frontend so this host's cloudflared can publish
-  # mon-node-<HOST_ID>.cothrom.ie → http://node_exporter:9100
+  # Published on the host for Cherry Prometheus over Tailscale.
+  # Restrict with Tailscale ACLs / host firewall (not public internet).
   node_exporter:
     <<: *restart_policy
     image: quay.io/prometheus/node-exporter:${NODE_EXPORTER_VERSION:-v1.12.0}
@@ -43,21 +48,22 @@ services:
     pid: host
     volumes:
       - /:/host:ro,rslave
+    ports:
+      - "9100:9100"
     networks:
       - frontend
 
   # ------------- blackbox_exporter ---------------
-  # On frontend so this host's cloudflared can publish
-  # mon-blackbox-<HOST_ID>.cothrom.ie → http://blackbox_exporter:9115
   blackbox_exporter:
     <<: *restart_policy
     image: quay.io/prometheus/blackbox-exporter:${BLACKBOX_EXPORTER_VERSION:-v0.28.0}
     command:
       - --config.file=/etc/blackbox_exporter/config.yml
-    # Required for the icmp module when used later
     cap_add:
       - NET_RAW
     volumes:
       - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    ports:
+      - "9115:9115"
     networks:
       - frontend

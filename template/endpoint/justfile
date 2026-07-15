@@ -9,9 +9,13 @@ default: help
 help:
     @just --list
 
-# Start cloudflared, node_exporter, blackbox_exporter
+# Start node_exporter + blackbox_exporter (Tailscale scrape path)
 up:
     docker compose up -d
+
+# Also start cloudflared (optional debug tunnel; needs TUNNEL_TOKEN)
+up-tunnel:
+    docker compose --profile tunnel up -d
 
 # Stop containers
 down:
@@ -21,7 +25,7 @@ down:
 ps:
     docker compose ps
 
-# Follow logs (optional: just logs cloudflared)
+# Follow logs (optional: just logs node_exporter)
 logs *SERVICE:
     docker compose logs -f {{SERVICE}}
 

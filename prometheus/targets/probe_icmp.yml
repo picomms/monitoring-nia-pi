@@ -1,0 +1,22 @@
+# ICMP probes via each slice blackbox over Tailscale.
+# blackbox_host is rewritten to __address__ in prometheus.yml relabel_configs.
+- targets:
+    - 1.1.1.1
+  labels:
+    instance: streamrtn1
+    blackbox_host: streamrtn1.taild08b87.ts.net:9115
+- targets:
+    - 1.1.1.1
+  labels:
+    instance: streamrtn2
+    blackbox_host: streamrtn2.taild08b87.ts.net:9115
+- targets:
+    - 1.1.1.1
+  labels:
+    instance: streamrtn3
+    blackbox_host: streamrtn3.taild08b87.ts.net:9115
+- targets:
+    - 1.1.1.1
+  labels:
+    instance: streamrtn4
+    blackbox_host: streamrtn4.taild08b87.ts.net:9115

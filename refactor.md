@@ -20,11 +20,11 @@ That shift drives three decisions:
 2. **Split server vs endpoint stacks.** This repo is the **server** stack.
    Raspberry Pis run a separate shared template (`docker-slice-pi`) with a
    unique `.env` per host.
-3. **Central Prometheus, many exporters, linked by Cloudflare.** We do **not**
-   run a Prometheus server on every endpoint — each endpoint exposes lightweight
-   `/metrics` exporters, and the server stack scrapes them over **Cloudflare
-   Tunnels**. Every stack runs a `cloudflared` Docker container; no Tailscale
-   data path.
+3. **Central Prometheus, many exporters.** We do **not** run a Prometheus server
+   on every endpoint — each endpoint exposes lightweight `/metrics` exporters.
+   **Scrapes use Tailscale** (MagicDNS + published exporter ports). **Grafana
+   for humans** uses Cloudflare Tunnel + Access (`mon-grafana.cothrom.ie`).
+   Slice `cloudflared` is optional.
 
 ## Repo layout
 
@@ -163,27 +163,18 @@ Preference: **official `cloudflare/cloudflared` Docker containers** in each
 Compose stack — not host-installed binaries — so tunnel lifecycle matches the
 rest of the stack (`just up-tunnel` / `just down`, backed by Docker Compose).
 
-**Scrape topology (decided): hostname-based tunnel routes.** Prometheus scrapes
-stable per-exporter hostnames with a `mon-` prefix under `cothrom.ie` that Cloudflare Tunnel maps
-to Compose service names on each endpoint's `frontend` network. No private CIDR /
-WARP routing for the scrape path.
+**Scrape topology (decided): Tailscale MagicDNS + published ports.** Prometheus
+on Cherry scrapes `http://<HOST_ID>.taild08b87.ts.net:9100` and `:9115`. Slice
+stacks publish those ports; restrict with Tailscale ACLs / host firewall.
 
-Intended shape:
+**Grafana topology:** Cloudflare Tunnel on Cherry only —
+`mon-grafana.cothrom.ie` → `http://grafana:3000` behind Access
+([`docs/cloudflare.md`](docs/cloudflare.md)).
 
-| Side | Role of `cloudflared` |
+| Side | Role |
 | --- | --- |
-| **`docker-slice-pi` (each RPi)** | Outbound-only connector on `frontend`. Publishes per-exporter hostname routes such as `mon-node-pi1.cothrom.ie` → `http://node_exporter:9100`. One tunnel (token) per RPi, kept in that host's `.env`. |
-| **`monitoring-nia-pi` (server)** | On `frontend`: `mon-grafana.cothrom.ie` for Grafana behind Cloudflare Access. Prometheus scrapes RPi exporter **hostnames** via Cloudflare edge (those routes terminate on each RPi's `cloudflared`), not through the server's tunnel connector. Same Compose on Cherry now; Apple later as a mirror with its own `.env` / tunnel token. |
-
-Exporters stay off the public internet: scrape hostnames are private / Access-gated
-as documented in `docs/cloudflare.md`; only Grafana (and anything we deliberately
-publish) gets an open public hostname + Access policy. Tunnel ingress targets are
-Compose service names on `frontend` (e.g. `http://grafana:3000`), not host-published
-ports.
-
-Hostname naming, Access policies for scrape targets, and DNS are spelled out in
-`docs/cloudflare.md`: monitoring lives with a `mon-` prefix under `cothrom.ie`, with one hostname
-per exporter. Compose only consumes tokens and service names.
+| **`docker-slice-pi` (each RPi)** | `node_exporter` / `blackbox_exporter` with host ports `9100` / `9115`. Optional `cloudflared` (`profiles: [tunnel]`). |
+| **`monitoring-nia-pi` (server)** | Prometheus scrapes Tailscale; Grafana published via Cherry `cloudflared` + Access. |
 
 ## What changes, concretely
 
@@ -249,36 +240,29 @@ instead of inventing one.
 
 - **Retention:** Prometheus default (~15 days) is fine; no long-term store
   needed for now.
-- **Service discovery:** static Prometheus scrape configs using per-exporter
-  Cloudflare tunnel hostnames for each RPi exporter; revisit later if host count
+- **Service discovery:** static Prometheus scrape configs using Tailscale
+  MagicDNS names + ports for each RPi exporter; revisit later if host count
   grows.
 - **Compose networks:** every stack declares `frontend` and `backend`.
-  `cloudflared` is `frontend`-only; dual-homed services join both when they
-  need tunnel reachability *and* internal peers. Prefer no host `ports:` for
-  tunnel-fronted services — publish only via Cloudflare.
-- **Security:** exporters serve unauthenticated `/metrics` — they must **not**
-  be open public hostnames. Reachability is via Cloudflare hostname routes
-  (Access-gated as needed) and local Docker networks (`frontend` / `backend`).
-  Grafana stays behind Cloudflare Access on its public hostname. Per-host
-  tunnel tokens and other secrets live in each host's `.env` (never in the
-  master repo).
+  `cloudflared` is `frontend`-only when used. Grafana is dual-homed. Slice
+  exporters publish host ports `9100`/`9115` for Tailscale scrapes.
+- **Security:** exporters serve unauthenticated `/metrics` — restrict with
+  Tailscale ACLs / host firewall; do not expose them on the public internet.
+  Grafana stays behind Cloudflare Access on `mon-grafana.cothrom.ie`. Secrets
+  live in each host's `.env` (never in the master repo).
 - **cloudflared image:** pin a known `cloudflare/cloudflared` tag in Compose
-  (avoid floating `:latest` in production stacks). Prefer remotely managed
-  tunnels (`TUNNEL_TOKEN`) so ingress/hostname routes are edited in the Zero
-  Trust dashboard without baking `config.yml` into images.
-- **Migration:** greenfield — we have not launched. Topple the current
-  Influx/Telegraf/Grafana-on-streaming-host design and build the server stack
-  in this repo on Cherry (Apple mirror later). No parallel old/new cutover
-  required; historical InfluxDB data does not carry over. Tailscale is **not**
-  part of the target data path.
+  (avoid floating `:latest`). Remotely managed tunnels (`TUNNEL_TOKEN`) for
+  Grafana (and optional slice debug).
+- **Migration:** greenfield — Topple the old Influx/Telegraf design; build the
+  server stack on Cherry (Apple mirror later). Historical InfluxDB data does
+  not carry over.
 
 ## Decisions (locked)
 
-- **Tunnel routing:** hostname-based (not private CIDR / WARP) for Prometheus
-  scrapes and published services.
-- **Hostname scheme:** monitoring uses `mon-*` hostnames under `cothrom.ie`; Grafana is
-  `mon-grafana.cothrom.ie`; exporters use per-exporter hostnames like
-  `mon-node-<HOST_ID>.cothrom.ie` and `mon-blackbox-<HOST_ID>.cothrom.ie`.
+- **Scrape routing:** Tailscale MagicDNS + published exporter ports.
+- **Grafana routing:** Cloudflare Tunnel hostname `mon-grafana.cothrom.ie` +
+  Access. Optional `mon-node-*` / `mon-blackbox-*` hostnames are not the scrape
+  path.
 - **Server stack:** this repo (`monitoring-nia-pi`) deploys the central
   Prometheus/Grafana stack. Primary host is **Cherry**; **Apple** will later
   run a **mirror** of the same stack (backup server). Unique `.env` per server.

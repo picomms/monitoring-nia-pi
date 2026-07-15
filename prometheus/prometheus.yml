@@ -1,6 +1,7 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  scrape_timeout: 10s
   external_labels:
     monitor: cherry
 
@@ -16,3 +17,42 @@ scrape_configs:
           - node_exporter:9100
         labels:
           instance: cherry
+
+  # Remote node_exporter via Tailscale MagicDNS
+  - job_name: node_remote
+    scheme: http
+    metrics_path: /metrics
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/node_remote.yml
+        refresh_interval: 30s
+
+  # Remote blackbox_exporter self-metrics via Tailscale
+  - job_name: blackbox
+    scheme: http
+    metrics_path: /metrics
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/blackbox.yml
+        refresh_interval: 30s
+
+  # ICMP probe through each slice's blackbox (Tailscale)
+  - job_name: probe_icmp
+    scheme: http
+    metrics_path: /probe
+    params:
+      module:
+        - icmp
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/probe_icmp.yml
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: probe_target
+      - source_labels: [blackbox_host]
+        target_label: __address__
+      - regex: blackbox_host
+        action: labeldrop

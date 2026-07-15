@@ -33,6 +33,11 @@ logs *SERVICE:
 config:
     docker compose config
 
+# Reload Prometheus scrape config after YAML/targets changes
+prom-reload:
+    curl --fail --request POST http://localhost:9090/-/reload
+    @echo "prometheus reloaded"
+
 # Install Python deps (scripts + docs)
 sync:
     uv sync --all-extras

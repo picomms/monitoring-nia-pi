@@ -15,8 +15,9 @@ just up
 ```
 
 Open Grafana at [http://localhost:3000](http://localhost:3000) (see `GRAFANA_PORT`
-in `.env`). The **Cherry host** dashboard shows live CPU, memory, disk, and
-network metrics from `node_exporter`.
+in `.env`). **Cherry host** shows local metrics; **Fleet hosts** covers Cherry
+plus slice Pis scraped over Tailscale. Public Grafana:
+`https://mon-grafana.cothrom.ie`.
 
 | Service | Default URL | Purpose |
 | --- | --- | --- |
@@ -53,3 +54,4 @@ Vimeo auth notes for the future ffprobe exporter live in
 ## License
 
 MIT — see [LICENSE](LICENSE).
+

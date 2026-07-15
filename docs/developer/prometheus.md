@@ -2,68 +2,67 @@
 
 Prometheus is the metrics store and scraper for the server stack. Its
 configuration is versioned in `prometheus/prometheus.yml` and mounted read-only
-into the container.
+into the container. Fleet targets live under `prometheus/targets/` (file SD).
 
-## Local scrape jobs
+## Scrape jobs
 
-| Job | Target | Labels | Purpose |
+| Job | Targets | Labels | Purpose |
 | --- | --- | --- | --- |
 | `prometheus` | `localhost:9090` | default | Prometheus self-metrics |
 | `node` | `node_exporter:9100` | `instance=cherry` | Cherry host metrics |
+| `node_remote` | `<host>.taild08b87.ts.net:9100` | `instance=<HOST_ID>` | Slice host metrics (Tailscale) |
+| `blackbox` | `<host>.taild08b87.ts.net:9115` | `instance=<HOST_ID>` | Blackbox exporter self-metrics |
+| `probe_icmp` | each slice blackbox `/probe` | `instance=<HOST_ID>` | ICMP to `1.1.1.1` via that Pi |
 
-The server also sets `external_labels.monitor: cherry`, which will distinguish
-this Prometheus instance when the Apple mirror is added later.
+Current fleet: `streamrtn1`–`streamrtn4`. Add a host by editing
+`prometheus/targets/*.yml` and running `just prom-reload`.
 
-## Why the node target uses Compose DNS
+Grafana for humans uses Cloudflare (`mon-grafana.cothrom.ie`); remote scrapes do
+**not** use Cloudflare Access or `mon-node-*` hostnames.
+
+The server sets `external_labels.monitor: cherry` for the future Apple mirror.
+
+## Tailscale DNS from the container
+
+Prometheus uses Tailscale MagicDNS resolver `100.100.100.100` (see `compose.yml`
+`dns:`) so `*.ts.net` names resolve inside the container. The host must be on the
+tailnet (`tailscale status`).
+
+## Why the local node target uses Compose DNS
 
 `node_exporter` runs with `pid: host` and a read-only root filesystem bind so it
 can report real host CPU, memory, disk, process, and filesystem metrics. It still
 joins the Compose `backend` network, allowing Prometheus to scrape it by service
 name at `node_exporter:9100`.
 
-M1 initially tested a host-networked exporter through
-`host.docker.internal:9100`. Docker hairpin traffic timed out on Cherry because
-of its iptables path. Keeping the exporter on `backend` avoids that dependency
-while preserving the host visibility required by the collectors.
-
 ## Health checks
-
-Prometheus health endpoint:
 
 ```bash
 curl --fail http://localhost:9090/-/healthy
 ```
 
-Open **Status → Targets** in the Prometheus UI and confirm both local jobs are
-**UP**. To query the node scrape directly:
+Open **Status → Targets** and confirm local plus remote jobs are **UP**:
 
 ```bash
 curl --get http://localhost:9090/api/v1/query \
-  --data-urlencode 'query=up{job="node"}'
+  --data-urlencode 'query=up{job="node_remote"}'
+curl --get http://localhost:9090/api/v1/query \
+  --data-urlencode 'query=probe_success{job="probe_icmp"}'
 ```
-
-The result should contain a sample with value `1`.
 
 ## Applying configuration changes
 
-Validate the resolved Compose model first:
-
 ```bash
 just config
+just prom-reload    # POST /-/reload (lifecycle enabled)
 ```
 
-Prometheus starts with `--web.enable-lifecycle`, so a valid scrape-config change
-can be reloaded without restarting the container:
-
-```bash
-curl --request POST http://localhost:9090/-/reload
-```
-
-If the reload fails, inspect `just logs prometheus`. Recreating the service is a
-safe fallback:
+If reload fails, inspect `just logs prometheus` or recreate:
 
 ```bash
 docker compose up -d --force-recreate prometheus
 ```
 
-No rule files or Alertmanager configuration are loaded yet; those belong to M5.
+Grafana: provisioned **Fleet hosts** dashboard (`uid: fleet-hosts`).
+
+No rule files or Alertmanager yet — those belong to M5.

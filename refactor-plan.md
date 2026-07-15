@@ -89,6 +89,12 @@ metrics over hostname routes, and Grafana shows them.
 
 Roll the same template to other RPis only after the pilot path is solid.
 
+**Status:** Done (hybrid path) — scrapes over **Tailscale MagicDNS** + published
+ports `9100`/`9115`; Grafana remains on Cloudflare (`mon-grafana`). Fleet
+`streamrtn1`–`4` in `prometheus/targets/`; **Fleet hosts** dashboard.
+Verified end-to-end on `streamrtn1`. Roll `scripts/roll-slice-ports.sh` on
+`streamrtn2`–`4` when SSH keys are available (ports not yet published there).
+
 ### M5 — Light alerting (optional stretch)
 
 Alertmanager + a few rules (`up == 0`, blackbox probe failed). Document in

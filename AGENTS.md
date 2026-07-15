@@ -33,7 +33,8 @@ summaries are `docs/developer/decisions.md` and
 
 ```bash
 just up             # start Prometheus, Grafana, node_exporter
-just up-tunnel      # also start cloudflared (needs TUNNEL_TOKEN)
+just up-tunnel      # also start cloudflared for Grafana (needs TUNNEL_TOKEN)
+just prom-reload    # POST /-/reload after scrape config changes
 just logs           # follow logs
 just config         # print resolved compose config
 just sync           # uv sync --all-extras
@@ -44,7 +45,8 @@ just docs-build     # strict docs build (CI)
 ## Conventions
 
 - Environment variables live in `.env` (gitignored), templated from `env.sample`.
-  Never commit `.env` or real secrets.
+  Never commit `.env` or real secrets. Remote scrapes use Tailscale MagicDNS
+  targets in `prometheus/targets/`; Grafana uses Cloudflare Access.
 - Docker volumes are prefixed `NSD_` — don't introduce unprefixed volumes.
 - Compose networks: `frontend` (tunnel edge) and `backend` (internal). Do not pin
   bare external network names that collide with other stacks on the host.

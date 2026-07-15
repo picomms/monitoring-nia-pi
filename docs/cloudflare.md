@@ -1,8 +1,8 @@
 # Cloudflare
 
-This is the thin operator guide for the monitoring link. It covers the
-Cloudflare Tunnel and Access pattern we need for Cherry Grafana now, and the
-hostname contract that the Raspberry Pi exporter stack will follow later.
+This is the thin operator guide for **Grafana over Cloudflare**. Remote
+exporter scrapes use **Tailscale** (see [Slice](developer/slice.md) and
+[Prometheus](developer/prometheus.md)) — not Cloudflare Access.
 
 Full Zero Trust administration is intentionally out of scope. This page is only
 the project-specific runbook for `cothrom.ie`.
@@ -22,11 +22,9 @@ and stays inside Cloudflare Universal SSL coverage.
 | Role | Hostname | Tunnel ingress target |
 | --- | --- | --- |
 | Cherry Grafana | `mon-grafana.cothrom.ie` | `http://grafana:3000` |
-| Host node metrics | `mon-node-<HOST_ID>.cothrom.ie` | `http://node_exporter:9100` |
-| Host blackbox metrics | `mon-blackbox-<HOST_ID>.cothrom.ie` | `http://blackbox_exporter:9115` |
 
-Use one hostname per exporter. Avoid path-based routing; it would require an
-extra path-aware proxy and would make the endpoint stack less reusable.
+Optional debug hostnames (`mon-node-*` / `mon-blackbox-*`) may still exist on
+slice tunnels but are **not** used by Prometheus. Scrapes go over Tailscale.
 
 ## Stack contract
 
@@ -114,48 +112,11 @@ Then open `https://mon-grafana.cothrom.ie`. You should see a Cloudflare Access
 challenge before Grafana. Local break-glass access remains available at
 `http://localhost:3000` while the port is published.
 
-## Endpoint tunnel (slice / RPi)
+## Endpoint tunnels (optional)
 
-The reusable endpoint stack is documented in [Slice](developer/slice.md). Compose
-lives in `template/endpoint/` (canonical) and is copied to `docker-slice-pi` for
-deploy. M4 wires Cherry Prometheus scrapes; M3 only publishes the hostnames.
-
-For a host with:
-
-```dotenv
-HOST_ID=pi1
-TUNNEL_TOKEN=...
-```
-
-1. Create a remotely managed tunnel named `monitoring-slice-pi1`.
-2. Put the token in that Pi's `.env`.
-3. Add Public Hostnames on that tunnel:
-
-| Hostname | Target |
-| --- | --- |
-| `mon-node-pi1.cothrom.ie` | `http://node_exporter:9100` |
-| `mon-blackbox-pi1.cothrom.ie` | `http://blackbox_exporter:9115` |
-
-4. Create Cloudflare Access applications for both hostnames. Exporter endpoints
-   serve unauthenticated `/metrics` locally — do not leave them world-readable.
-5. Start the stack with `just up` and confirm the connector is healthy.
-
-## Prometheus scrape authentication
-
-Remote exporter hostnames should be protected by Cloudflare Access. For
-machine-to-machine scraping, create an Access Service Token and attach a policy
-that allows that token to the exporter applications.
-
-Prometheus will later send:
-
-```yaml
-headers:
-  CF-Access-Client-Id: <client id>
-  CF-Access-Client-Secret: <client secret>
-```
-
-Do not add these headers or remote scrape jobs in M2; that belongs to M4. This
-section documents the shape so the Access applications are created correctly.
+Slice scrapes use Tailscale — see [Slice](developer/slice.md). A per-Pi tunnel
+(`just up-tunnel`) is optional for debug `mon-node-*` / `mon-blackbox-*`
+hostnames and is not required for Cherry Prometheus.
 
 ## Coexisting with other services
 

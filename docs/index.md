@@ -3,7 +3,7 @@
 Central monitoring server stack for live-streaming infrastructure. Deployed on
 **Cherry** (Picomms). Metrics are scraped with Prometheus and visualised in
 Grafana. M1 is complete: Cherry's local host metrics are live. Raspberry Pi
-exporters and Cloudflare scrape routes come in later milestones.
+exporters are scraped over Cloudflare hostnames (see [Prometheus](developer/prometheus.md)).
 
 Compose project name: `monitoring-nia`.
 

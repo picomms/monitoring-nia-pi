@@ -51,16 +51,18 @@ stack does not collide with other Compose projects on Cherry.
 
 ## Data model
 
-Prometheus metrics with labels. Local scrape jobs today:
+Prometheus metrics with labels. Scrape jobs today:
 
 | Job | Target | Purpose |
 | --- | --- | --- |
 | `prometheus` | `localhost:9090` | Self-metrics |
-| `node` | `node_exporter:9100` | Cherry host metrics (`instance=cherry`) |
+| `node` | `node_exporter:9100` | Cherry host (`instance=cherry`) |
+| `node_remote` | `*.taild08b87.ts.net:9100` | Slice hosts over Tailscale |
+| `blackbox` | `*.taild08b87.ts.net:9115` | Blackbox exporter metrics |
+| `probe_icmp` | blackbox `/probe` | ICMP via each slice |
 
-Remote scrape jobs and Alertmanager arrive in later milestones.
-See [Prometheus](prometheus.md) for the target configuration, the Cherry
-Compose-DNS decision, health checks, and reload procedure.
+See [Prometheus](prometheus.md) for file SD, Access headers, health checks, and
+reload. Alertmanager arrives in M5.
 
 Endpoint Pis run a separate Compose template (`cloudflared` + `node_exporter` +
 `blackbox_exporter`). See [Slice](slice.md).

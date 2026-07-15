@@ -35,8 +35,12 @@ services:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
       - --web.enable-lifecycle
+    # Tailscale MagicDNS for *.ts.net scrape targets
+    dns:
+      - 100.100.100.100
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/targets:/etc/prometheus/targets:ro
       - NSD_prometheus_data:/prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"

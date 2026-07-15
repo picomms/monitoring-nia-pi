@@ -68,7 +68,7 @@
       "docker-compose*.yml": "dockercompose",
       "docker-compose*.yaml": "dockercompose",
       "*.dockerfile": "dockerfile",
-      "justfile": "justfile"
+      "justfile": "makefile"
     },
   },
 }

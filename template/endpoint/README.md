@@ -7,39 +7,36 @@ per host.
 **Documentation (source of truth)** lives in the server repo:
 
 - [Slice template](https://picomms.github.io/monitoring-nia-pi/developer/slice/)
-- [Cloudflare hostname / tunnel guide](https://picomms.github.io/monitoring-nia-pi/cloudflare/)
+- [Cloudflare (Grafana only)](https://picomms.github.io/monitoring-nia-pi/cloudflare/)
 
 ## Quick start
 
 ```bash
 cp env.sample .env
-# set HOST_ID and TUNNEL_TOKEN
+# set HOST_ID (e.g. streamrtn1)
 just up
 just ps
 ```
 
-Then in Cloudflare Zero Trust, add Public Hostnames on this host's tunnel:
+Cherry scrapes over **Tailscale** on published ports:
 
-| Hostname | URL |
+| Port | Service |
 | --- | --- |
-| `mon-node-<HOST_ID>.cothrom.ie` | `http://node_exporter:9100` |
-| `mon-blackbox-<HOST_ID>.cothrom.ie` | `http://blackbox_exporter:9115` |
+| `9100` | `node_exporter` |
+| `9115` | `blackbox_exporter` |
 
-Protect both with Cloudflare Access (do not leave `/metrics` world-readable).
+Restrict with Tailscale ACLs / host firewall. Optional tunnel: set `TUNNEL_TOKEN`
+and `just up-tunnel` (not required for scrapes).
 
 ## Verify locally
 
 ```bash
-docker compose exec -T node_exporter wget -qO- http://127.0.0.1:9100/metrics | head
-docker compose exec -T blackbox_exporter wget -qO- http://127.0.0.1:9115/metrics | head
+curl -sS http://127.0.0.1:9100/metrics | head
+curl -sS http://127.0.0.1:9115/metrics | head
 ```
 
-Frontend reachability (what `cloudflared` needs — the image has no shell/`wget`):
+From Cherry (MagicDNS):
 
 ```bash
-NET=$(docker compose config --format json | python3 -c "import sys,json; print(json.load(sys.stdin)['networks']['frontend']['name'])")
-docker run --rm --network "$NET" curlimages/curl:8.5.0 -sf -o /dev/null -w '%{http_code}\n' http://node_exporter:9100/metrics
-docker run --rm --network "$NET" curlimages/curl:8.5.0 -sf -o /dev/null -w '%{http_code}\n' http://blackbox_exporter:9115/metrics
+curl -sS "http://<HOST_ID>.taild08b87.ts.net:9100/metrics" | head
 ```
-
-Cherry Prometheus scrapes arrive in milestone M4 — this stack only exposes exporters.

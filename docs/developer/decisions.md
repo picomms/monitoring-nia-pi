@@ -26,14 +26,12 @@ root; sequencing and done criteria live in `refactor-plan.md`.
 - Every stack has project-scoped `frontend` and `backend` Compose networks.
 - `cloudflared` joins `frontend` only. Grafana is dual-homed so the tunnel can
   reach it while it queries Prometheus on `backend`.
-- Remote exporters will be scraped through stable, hostname-based Cloudflare
-  Tunnel routes. Tailscale and private-CIDR/WARP routing are not part of the
-  monitoring data path.
-- Monitoring hostnames live with a `mon-` prefix under `cothrom.ie`, with one hostname per
-  exporter (`mon-node-<HOST_ID>.cothrom.ie`, `mon-blackbox-<HOST_ID>.cothrom.ie`)
-  and Grafana at `mon-grafana.cothrom.ie`.
-- Grafana and exporter hostnames are protected by Cloudflare Access; Prometheus
-  will use an Access Service Token for remote exporter scrapes in M4.
+- **Hybrid link:** Grafana (humans) via Cloudflare Tunnel + Access at
+  `mon-grafana.cothrom.ie`. Remote exporter scrapes via **Tailscale MagicDNS**
+  (`<HOST_ID>.taild08b87.ts.net:9100` / `:9115`). Slice `cloudflared` is
+  optional (Compose profile `tunnel`).
+- Restrict exporter host ports with Tailscale ACLs / host firewall — do not
+  expose `/metrics` on the public internet.
 
 ## Delivery order
 
