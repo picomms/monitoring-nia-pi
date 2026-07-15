@@ -1,13 +1,9 @@
 [project]
 name = "nia-stream-dashboard"
 version = "0.1.0"
-description = "NIA monitoring server stack: Prometheus, Grafana, and (later) a Vimeo/ffprobe exporter"
+description = "NIA monitoring server stack: Prometheus, Grafana, and docs"
 requires-python = ">=3.12"
-dependencies = [
-  "pyvimeo",
-  "python-dotenv",
-  "influxdb-client",
-]
+dependencies = []
 
 [project.optional-dependencies]
 docs = [

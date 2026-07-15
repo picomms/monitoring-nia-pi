@@ -1,5 +1,5 @@
 # Slim module stub for NIA endpoint probes.
-# Probe targets are not listed here — Prometheus passes them as scrape params (M4).
+# Probe targets are not listed here — Prometheus passes them as scrape params.
 modules:
   http_2xx:
     prober: http

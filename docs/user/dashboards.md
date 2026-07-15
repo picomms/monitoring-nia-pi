@@ -19,7 +19,25 @@ Live Cherry host metrics from `node_exporter`:
 
 Datasource: provisioned Prometheus (`uid: prometheus`).
 
-## Later
+## Fleet hosts
 
-Remote RPi node/blackbox panels arrive with milestone M4. Stream/ffprobe panels
-wait for G2 — see [FFmpeg / Vimeo](../developer/ffmpeg-vimeo.md).
+- **File:** `grafana/dashboards/fleet-hosts.json`
+- **UID:** `fleet-hosts`
+- **Folder:** NIA Monitoring
+
+Fleet panels cover Cherry plus `streamrtn1`-`streamrtn4` over Tailscale:
+
+- Host availability
+- CPU and memory
+- Filesystem usage
+- Network receive / transmit rates
+- ICMP probe status via each slice blackbox exporter
+
+## Speedtest
+
+- **File:** `grafana/dashboards/speedtest.json`
+- **UID:** `speedtest`
+- **Folder:** NIA Monitoring
+
+Speedtest Tracker exports Ookla results from Cherry and each slice host. Metrics
+remain empty until each tracker completes its first scheduled or manual test.

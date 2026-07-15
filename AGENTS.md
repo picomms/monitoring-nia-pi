@@ -9,10 +9,11 @@ live-streaming infrastructure. Prometheus scrapes metrics; Grafana renders
 provisioned PromQL dashboards. Primary deploy host is **Cherry**. Endpoint
 exporters live in a separate repo (`docker-slice-pi`) — not here.
 
-Architecture: `refactor.md`. Milestones: `refactor-plan.md`. The published
-summaries are `docs/developer/decisions.md` and
+Architecture summary: `docs/developer/architecture.md` and
+`docs/developer/decisions.md`. Prometheus operations:
 `docs/developer/prometheus.md`. Docs publish to GitHub Pages (see
-`.github/workflows/docs.yml`).
+`.github/workflows/docs.yml`). Vimeo HLS / ffprobe exporter work lives in the
+sibling `exporter-vimeo` repository.
 
 ## Repo map
 
@@ -24,9 +25,8 @@ summaries are `docs/developer/decisions.md` and
 | `prometheus/` | Prometheus scrape config; operational notes in `docs/developer/prometheus.md` |
 | `grafana/` | Provisioned datasource + dashboard JSON (source of truth) |
 | `docs/` | MkDocs source; `developer/decisions.md` is the concise architecture digest |
-| `template/endpoint/` | Canonical RPi endpoint template (promote to `docker-slice-pi`) |
-| `ffmpeg/`, `scripts/` | Future ffprobe exporter scaffolding (G2) — not in Compose |
-| `telegraf/` | Legacy Telegraf config (unused by current Compose) |
+| `template/endpoint/` | Canonical RPi endpoint template (node, blackbox, speedtest; promote to `docker-slice-pi`) |
+| `scripts/` | Operational helper scripts |
 | `pyproject.toml` | Python deps for scripts + docs toolchain (`uv`) |
 
 ## Common commands
@@ -52,7 +52,7 @@ just docs-build     # strict docs build (CI)
   bare external network names that collide with other stacks on the host.
 - Grafana dashboards are edited as JSON in `grafana/dashboards/`, not only via the
   UI. Use stable, human-readable `uid` values.
-- PromQL (not Flux / InfluxQL) for new dashboards.
+- PromQL for new dashboards.
 - Pin image tags in Compose / `env.sample`; avoid floating `:latest` for production.
 
 ## Known pitfalls
@@ -62,16 +62,16 @@ just docs-build     # strict docs build (CI)
   to `host.docker.internal` is unreliable on this host).
 - `cloudflared` is behind Compose profile `tunnel` — default `just up` will not
   start it.
-- Vimeo auth is tricky; working patterns are documented in
-  `docs/developer/ffmpeg-vimeo.md` before G2 implementation.
+- Alerting is a later epic; do not add Alertmanager/rules casually while doing
+  routine stack maintenance.
 - Do not put the NIA monitoring stack into `docker-cherry-pi` — that repo is for
   host-unique Cherry services only.
 
 ## Scope guidance for agents
 
 - Documentation changes (README, `docs/`, `AGENTS.md`) can be made freely.
-- Compose / Prometheus / Grafana / env changes are feature work — read
-  `refactor-plan.md` first and update it when a milestone completes.
+- Compose / Prometheus / Grafana / env changes are feature work — check the
+  relevant docs and keep them in sync.
 - When touching `compose.yml`, `prometheus/prometheus.yml`, Grafana provisioning,
   or `env.sample`, check the others for consistency.
 

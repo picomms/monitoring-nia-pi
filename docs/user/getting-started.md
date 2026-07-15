@@ -23,20 +23,27 @@ just ps
 just logs
 ```
 
-This starts Prometheus, Grafana, and `node_exporter`. Cloudflare Tunnel is **not**
-started by default — use `just up-tunnel` once `TUNNEL_TOKEN` is set.
+This starts Prometheus, Grafana, `node_exporter`, and Speedtest Tracker.
+Cloudflare Tunnel is **not** started by default — use `just up-tunnel` once
+`TUNNEL_TOKEN` is set.
 
 ## 3. Open Grafana
 
 Visit `http://localhost:${GRAFANA_PORT}` (default `3000`) and log in with the
 credentials from `.env`. The **Cherry host** dashboard under **NIA Monitoring**
-shows live CPU, memory, disk, and network metrics.
+shows live CPU, memory, disk, and network metrics. **Fleet hosts** and
+**Speedtest** show remote slice data after the Tailscale targets and trackers are
+available.
 
 ## 4. Verify data is flowing
 
 1. Open Prometheus at `http://localhost:${PROMETHEUS_PORT}` (default `9090`) →
-   **Status → Targets**. Both `prometheus` and `node` should be **UP**.
-2. In Grafana, open **Cherry host** — panels should populate within a minute.
+   **Status → Targets**. `prometheus`, `node`, `node_remote`, `blackbox`,
+   `probe_icmp`, `speedtest`, and `speedtest_remote` should be **UP** when the
+   full fleet is reachable.
+2. In Grafana, open **Cherry host**, **Fleet hosts**, and **Speedtest**. Panels
+   should populate within a minute; Speedtest panels need at least one completed
+   Ookla run per host.
 
 ## Stopping
 

@@ -16,6 +16,7 @@ networks:
 volumes:
   NSD_prometheus_data:
   NSD_grafana_data:
+  NSD_speedtest_tracker_data:
 
 # -----------------------------------------------
 # Shared service defaults
@@ -80,6 +81,34 @@ services:
     pid: host
     volumes:
       - /:/host:ro,rslave
+    networks:
+      - backend
+
+  # -------------- speedtest-tracker --------------
+  # Ookla schedule + UI; Prometheus scrapes /prometheus on backend.
+  # UI on host :8765 (Tailscale / LAN) — not Cloudflare.
+  speedtest-tracker:
+    <<: *restart_policy
+    image: lscr.io/linuxserver/speedtest-tracker:${SPEEDTEST_TRACKER_VERSION:-1.14.5}
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-Europe/Dublin}
+      - APP_KEY=${SPEEDTEST_APP_KEY:?SPEEDTEST_APP_KEY is required}
+      - APP_URL=${SPEEDTEST_APP_URL:-http://cherry.taild08b87.ts.net:8765}
+      - DB_CONNECTION=sqlite
+      - SPEEDTEST_SCHEDULE=${SPEEDTEST_SCHEDULE:-0 */6 * * *}
+      - SPEEDTEST_SERVERS=${SPEEDTEST_SERVERS:-}
+      - DISPLAY_TIMEZONE=${TZ:-Europe/Dublin}
+      # Applied on first boot only (settings migration)
+      - PROMETHEUS_ENABLED=true
+      - PROMETHEUS_ALLOWED_IPS=0.0.0.0/0
+
+
+    volumes:
+      - NSD_speedtest_tracker_data:/config
+    ports:
+      - "${SPEEDTEST_PORT:-8765}:80"
     networks:
       - backend
 

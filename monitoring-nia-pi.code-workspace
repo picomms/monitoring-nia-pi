@@ -4,10 +4,10 @@
       "path": "."
     },
     {
-      "path": "../../docker"
+      "path": "../docker-slice-pi"
     },
     {
-      "path": "../docker-slice-pi"
+      "path": "../exporter-vimeo"
     }
   ],
   "settings": {

@@ -54,6 +54,5 @@ nav:
       - Grafana: developer/grafana.md
       - Slice: developer/slice.md
       - Scripts: developer/scripts.md
-      - FFmpeg / Vimeo: developer/ffmpeg-vimeo.md
   - Roadmap: roadmap.md
   - Contributing: contributing.md

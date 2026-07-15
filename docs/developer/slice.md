@@ -22,8 +22,8 @@ contract changes, then copy the template files into `docker-slice-pi`.
 
 | Path | Purpose |
 | --- | --- |
-| `compose.yml` | `node_exporter`, `blackbox_exporter`; optional `cloudflared` (profile `tunnel`) |
-| `env.sample` | `HOST_ID`, optional `TUNNEL_TOKEN`, image pins |
+| `compose.yml` | `node_exporter`, `blackbox_exporter`, `speedtest-tracker`; optional `cloudflared` |
+| `env.sample` | `HOST_ID`, `SPEEDTEST_APP_KEY`, optional `TUNNEL_TOKEN`, image pins |
 | `blackbox/blackbox.yml` | Probe modules (`http_2xx`, `icmp`, `tcp_connect`) — no targets |
 | `justfile` | `up` / `up-tunnel` / `down` / `ps` / `logs` / `config` |
 | `README.md` | Quick start + link back to these docs |
@@ -33,10 +33,13 @@ contract changes, then copy the template files into `docker-slice-pi`.
 | Variable | Example | Purpose |
 | --- | --- | --- |
 | `HOST_ID` | `streamrtn1` | Matches Tailscale hostname / Prometheus `instance` |
+| `SPEEDTEST_APP_KEY` | `base64:…` | Required for Speedtest Tracker (unique per host) |
+| `SPEEDTEST_SCHEDULE` | `0 */6 * * *` | Cron for Ookla tests |
 | `TUNNEL_TOKEN` | secret | Optional — only for `just up-tunnel` |
 | `CLOUDFLARED_VERSION` | `2026.7.1` | Image pin |
 | `NODE_EXPORTER_VERSION` | `v1.12.0` | Image pin |
 | `BLACKBOX_EXPORTER_VERSION` | `v0.28.0` | Image pin |
+| `SPEEDTEST_TRACKER_VERSION` | `1.14.5` | Image pin |
 
 Compose layout is identical on every Pi. Do not branch YAML per host — put
 differences in `.env` only.
@@ -47,6 +50,14 @@ differences in `.env` only.
 | --- | --- | --- |
 | `9100` | `node_exporter` | `http://<HOST_ID>.taild08b87.ts.net:9100` |
 | `9115` | `blackbox_exporter` | `http://<HOST_ID>.taild08b87.ts.net:9115` |
+| `8765` | `speedtest-tracker` | `http://<HOST_ID>.taild08b87.ts.net:8765/prometheus` |
+
+Default UI login for Speedtest Tracker is `admin@example.com` / `password` —
+change immediately. Compose sets `PROMETHEUS_ENABLED=true` for **first boot**
+only. If `GET /prometheus` returns 404, enable Prometheus under Settings → Data
+platforms (or set `dataintegration` / `prometheus_enabled` to `true` in the
+sqlite `settings` table) and allow scrapers (`0.0.0.0/0` or Cherry’s Tailscale
+CIDR). Metrics stay `# no data available` until the first Ookla test finishes.
 
 Restrict these ports with **Tailscale ACLs** and/or host firewall so they are
 not reachable from the public internet. Current fleet: `streamrtn1`–`streamrtn4`
@@ -65,6 +76,7 @@ like `name: frontend`.
 | --- | --- | --- |
 | `node_exporter` | `frontend` | Host port `9100` for Tailscale scrapes |
 | `blackbox_exporter` | `frontend` | Host port `9115` |
+| `speedtest-tracker` | `frontend` | Host port `8765` (UI + `/prometheus`) |
 | `cloudflared` | `frontend` | Profile `tunnel` only |
 
 ## Bring-up

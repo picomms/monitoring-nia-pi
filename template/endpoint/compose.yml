@@ -2,7 +2,7 @@
 # NIA Monitoring — endpoint stack (Raspberry Pi)
 # Canonical template: monitoring-nia-pi/template/endpoint/
 # Deploy copy: docker-slice-pi
-# Scrapes: Tailscale → host ports 9100/9115
+# Scrapes: Tailscale → host ports 9100/9115/8765
 # Optional: cloudflared (profile tunnel) for debug hostnames
 # -----------------------------------------------
 name: slice-pi
@@ -13,6 +13,12 @@ name: slice-pi
 networks:
   frontend:
   backend:
+
+# -----------------------------------------------
+# Volumes
+# -----------------------------------------------
+volumes:
+  NSD_speedtest_tracker_data:
 
 # -----------------------------------------------
 # Shared service defaults
@@ -65,5 +71,31 @@ services:
       - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
     ports:
       - "9115:9115"
+    networks:
+      - frontend
+
+  # -------------- speedtest-tracker --------------
+  # UI + /prometheus on :8765 for Cherry scrapes over Tailscale.
+  speedtest-tracker:
+    <<: *restart_policy
+    image: lscr.io/linuxserver/speedtest-tracker:${SPEEDTEST_TRACKER_VERSION:-1.14.5}
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-Europe/Dublin}
+      - APP_KEY=${SPEEDTEST_APP_KEY:?SPEEDTEST_APP_KEY is required}
+      - APP_URL=http://${HOST_ID}.taild08b87.ts.net:${SPEEDTEST_PORT:-8765}
+      - DB_CONNECTION=sqlite
+      - SPEEDTEST_SCHEDULE=${SPEEDTEST_SCHEDULE:-0 */6 * * *}
+      - SPEEDTEST_SERVERS=${SPEEDTEST_SERVERS:-}
+      - DISPLAY_TIMEZONE=${TZ:-Europe/Dublin}
+      - PROMETHEUS_ENABLED=true
+      - PROMETHEUS_ALLOWED_IPS=0.0.0.0/0
+
+
+    volumes:
+      - NSD_speedtest_tracker_data:/config
+    ports:
+      - "${SPEEDTEST_PORT:-8765}:80"
     networks:
       - frontend

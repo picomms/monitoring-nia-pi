@@ -18,5 +18,7 @@ for n in "${nums[@]}"; do
     "$SRC/blackbox/blackbox.yml" \
     "$host:/home/admin/code/docker-slice-pi/blackbox/blackbox.yml"
   ssh -o BatchMode=yes "$host" \
-    'cd /home/admin/code/docker-slice-pi && (command -v just >/dev/null && just up || docker compose up -d) && curl -sS -o /dev/null -w "node=%{http_code} bb=" http://127.0.0.1:9100/metrics && curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:9115/metrics'
+    'cd /home/admin/code/docker-slice-pi && (command -v just >/dev/null && just up || docker compose up -d) && curl -sS -o /dev/null -w "node=%{http_code} bb=" http://127.0.0.1:9100/metrics && curl -sS -o /dev/null -w "%{http_code} st=" http://127.0.0.1:9115/metrics && curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8765/prometheus || true'
+  echo "note: ensure SPEEDTEST_APP_KEY is set in remote .env before speedtest-tracker starts"
 done
+

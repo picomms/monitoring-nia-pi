@@ -1,8 +1,7 @@
 # Decisions
 
 This page is the short, published digest of the architecture choices that shape
-the project. The full decision record lives in `refactor.md` at the repository
-root; sequencing and done criteria live in `refactor-plan.md`.
+the project.
 
 ## Deployment boundary
 
@@ -20,6 +19,8 @@ root; sequencing and done criteria live in `refactor-plan.md`.
   historical-data migration.
 - Static scrape targets are sufficient for the current fleet. Service discovery
   and long-term remote storage are deferred.
+- Speedtest Tracker exposes Ookla results through `/prometheus` on Cherry and
+  each slice host.
 
 ## Network model
 
@@ -33,12 +34,14 @@ root; sequencing and done criteria live in `refactor-plan.md`.
 - Restrict exporter host ports with Tailscale ACLs / host firewall — do not
   expose `/metrics` on the public internet.
 
-## Delivery order
+## Delivery shape
 
-- Use stock exporters first: `node_exporter`, then `blackbox_exporter`.
-- Prove the local Cherry path before linking Raspberry Pis.
-- The Vimeo/ffprobe exporter is second-generation work after the remote
-  node/blackbox path works through M4.
+- This repository owns the server stack and the canonical endpoint template.
+- `docker-slice-pi` owns deployable Raspberry Pi endpoint files.
+- Vimeo HLS / ffprobe exporter work lives in the sibling `exporter-vimeo`
+  repository and will be scraped here once it exposes Prometheus metrics.
+- Alerting is a later epic: add Alertmanager, rules, and notification routing
+  together rather than as incidental config.
 
 ## Operational conventions
 
@@ -49,5 +52,5 @@ root; sequencing and done criteria live in `refactor-plan.md`.
   of truth.
 
 See [Cloudflare](../cloudflare.md), [Architecture](architecture.md),
-[Prometheus](prometheus.md), and [Roadmap](../roadmap.md) for the current
-implementation and next steps.
+[Prometheus](prometheus.md), and [Roadmap](../roadmap.md) for implementation
+details and future epics.

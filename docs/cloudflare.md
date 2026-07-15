@@ -93,7 +93,7 @@ Create a Cloudflare Access application:
 | Session duration | Use the existing Cothrom/Picomms policy default |
 
 Add the existing human access policy for operators. Grafana is intentionally the
-only monitoring hostname intended for browser access at M2.
+only monitoring hostname intended for browser access.
 
 ### 4. Start the connector
 
@@ -141,7 +141,7 @@ hostnames and is not required for Cherry Prometheus.
 | Access challenge missing | Confirm the Access application domain exactly matches `mon-grafana.cothrom.ie` |
 | HTTP works, HTTPS fails | Tunnel/DNS is fine but TLS certificate coverage isn’t — see SSL warning above |
 
-## Done criteria for M2
+## Done criteria
 
 - `docs/cloudflare.md` explains tunnel, DNS, Access, and `.env` setup without
   requiring repo-specific guessing.

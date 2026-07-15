@@ -1,0 +1,17 @@
+# Speedtest Tracker /prometheus via Tailscale (port 8765).
+- targets:
+    - streamrtn1.taild08b87.ts.net:8765
+  labels:
+    instance: streamrtn1
+- targets:
+    - streamrtn2.taild08b87.ts.net:8765
+  labels:
+    instance: streamrtn2
+- targets:
+    - streamrtn3.taild08b87.ts.net:8765
+  labels:
+    instance: streamrtn3
+- targets:
+    - streamrtn4.taild08b87.ts.net:8765
+  labels:
+    instance: streamrtn4

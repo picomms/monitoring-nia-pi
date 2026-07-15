@@ -56,3 +56,26 @@ scrape_configs:
         target_label: __address__
       - regex: blackbox_host
         action: labeldrop
+
+  # Speedtest Tracker (local Cherry)
+  - job_name: speedtest
+    scrape_interval: 60s
+    scrape_timeout: 10s
+    metrics_path: /prometheus
+    static_configs:
+      - targets:
+          - speedtest-tracker:80
+        labels:
+          instance: cherry
+
+  # Speedtest Tracker on slices (Tailscale)
+  - job_name: speedtest_remote
+    scrape_interval: 60s
+    scrape_timeout: 10s
+    scheme: http
+    metrics_path: /prometheus
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/speedtest.yml
+        refresh_interval: 30s
+

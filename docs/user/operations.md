@@ -25,9 +25,11 @@ just config            # resolved Compose config
 curl --fail http://localhost:9090/-/healthy
 ```
 
-In the Prometheus UI, open **Status → Targets**. The `prometheus` and `node`
-jobs should both be **UP**. See [Prometheus](../developer/prometheus.md) for
-query checks and troubleshooting.
+In the Prometheus UI, open **Status → Targets**. Local jobs (`prometheus`,
+`node`, `speedtest`) should be **UP**; remote jobs (`node_remote`, `blackbox`,
+`probe_icmp`, `speedtest_remote`) should be **UP** when Tailscale and the slice
+hosts are reachable. See [Prometheus](../developer/prometheus.md) for query
+checks and troubleshooting.
 
 After editing `prometheus/prometheus.yml`, apply a validated configuration:
 
@@ -60,14 +62,11 @@ Persistent state uses the `NSD_` prefix:
 | --- | --- |
 | `NSD_prometheus_data` | Prometheus TSDB |
 | `NSD_grafana_data` | Grafana users / sessions (dashboards are provisioned from git) |
+| `NSD_speedtest_tracker_data` | Speedtest Tracker app data |
 
-There is no `just clean`. To discard data deliberately:
+There is no `just clean`. To discard monitoring history deliberately:
 
 ```bash
 just down
-docker volume rm monitoring-nia_NSD_prometheus_data monitoring-nia_NSD_grafana_data
+docker volume rm monitoring-nia_NSD_prometheus_data monitoring-nia_NSD_grafana_data monitoring-nia_NSD_speedtest_tracker_data
 ```
-
-Orphaned volumes from the old Influx/Telegraf stack (`NSD_influxdb2-*`,
-`NSD_speedtest-tracker-data`) can be removed the same way once you no longer need
-them.

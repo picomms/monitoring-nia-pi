@@ -13,9 +13,12 @@ into the container. Fleet targets live under `prometheus/targets/` (file SD).
 | `node_remote` | `<host>.taild08b87.ts.net:9100` | `instance=<HOST_ID>` | Slice host metrics (Tailscale) |
 | `blackbox` | `<host>.taild08b87.ts.net:9115` | `instance=<HOST_ID>` | Blackbox exporter self-metrics |
 | `probe_icmp` | each slice blackbox `/probe` | `instance=<HOST_ID>` | ICMP to `1.1.1.1` via that Pi |
+| `speedtest` | `speedtest-tracker:80` | `instance=cherry` | Local Speedtest Tracker `/prometheus` |
+| `speedtest_remote` | `<host>.taild08b87.ts.net:8765` | `instance=<HOST_ID>` | Slice Speedtest Tracker |
 
 Current fleet: `streamrtn1`–`streamrtn4`. Add a host by editing
-`prometheus/targets/*.yml` and running `just prom-reload`.
+`prometheus/targets/*.yml` and running `just prom-reload`. Speedtest jobs use
+`scrape_interval: 60s` and `metrics_path: /prometheus`.
 
 Grafana for humans uses Cloudflare (`mon-grafana.cothrom.ie`); remote scrapes do
 **not** use Cloudflare Access or `mon-node-*` hostnames.
@@ -65,4 +68,4 @@ docker compose up -d --force-recreate prometheus
 
 Grafana: provisioned **Fleet hosts** dashboard (`uid: fleet-hosts`).
 
-No rule files or Alertmanager yet — those belong to M5.
+No rule files or Alertmanager yet; alerting is a later epic.

@@ -1,8 +1,8 @@
 # NIA Monitoring
 
-Docker Compose monitoring server stack for live-streaming infrastructure.
-Prometheus scrapes metrics, Grafana renders provisioned dashboards. Primary host:
-**Cherry**.
+Docker Compose monitoring server stack for NIA live-streaming infrastructure.
+Prometheus scrapes Cherry and Raspberry Pi endpoint metrics; Grafana renders
+provisioned dashboards. Primary host: **Cherry**.
 
 ## Quick start
 
@@ -46,10 +46,9 @@ Start with the published
 [architecture](docs/developer/architecture.md),
 [decisions](docs/developer/decisions.md), and
 [Prometheus operations](docs/developer/prometheus.md). Tunnel and DNS setup is in
-[Cloudflare](docs/cloudflare.md). The complete decision record and milestone
-sequence are [`refactor.md`](refactor.md) and [`refactor-plan.md`](refactor-plan.md).
-Vimeo auth notes for the future ffprobe exporter live in
-[docs/developer/ffmpeg-vimeo.md](docs/developer/ffmpeg-vimeo.md).
+[Cloudflare](docs/cloudflare.md). Raspberry Pi endpoint details are in
+[Slice](docs/developer/slice.md). Vimeo HLS / ffprobe exporter work now lives in
+the sibling `exporter-vimeo` repository.
 
 ## License
 

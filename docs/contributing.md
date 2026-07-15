@@ -30,9 +30,8 @@ publish.
 
 ## Pull request expectations
 
-- Keep [Roadmap](roadmap.md) / `refactor-plan.md` in sync with what you finish.
-- Treat `refactor.md` as the full architecture decision record and
-  [Decisions](developer/decisions.md) as its concise published summary.
+- Keep [Roadmap](roadmap.md), [Architecture](developer/architecture.md), and
+  [Decisions](developer/decisions.md) in sync with user-visible stack changes.
 - Match existing page tone: task-oriented User Guide, implementation-detail
   Developer Guide.
 - Prefer updating an existing page over adding a new one unless the topic is

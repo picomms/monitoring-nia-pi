@@ -38,18 +38,3 @@ All runtime configuration is driven by a `.env` file at the repo root (copy
 
 Hostname / Access setup is in [Cloudflare](../cloudflare.md). Compose only consumes
 the token; ingress routes are managed in Zero Trust.
-
-## Vimeo / ffprobe (later — G2)
-
-Not used by the M1 Compose stack. Commented placeholders remain in `env.sample`:
-
-| Variable | Description |
-| --- | --- |
-| `VIMEO_TOKEN` | Access token |
-| `VIMEO_KEY` | App client ID |
-| `VIMEO_SECRET` | App client secret |
-| `VIMEO_EVENTID` | Live event ID |
-| `DEVICE_NAME` | Future metric label / instance name |
-
-See [FFmpeg / Vimeo](../developer/ffmpeg-vimeo.md) for the working auth pattern and
-API examples.
